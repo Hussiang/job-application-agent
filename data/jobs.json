@@ -1,0 +1,36 @@
+[
+    {
+        "id": 1,
+        "title": "DevOps Engineer",
+        "company": "Example Tech",
+        "location": "Hyderabad",
+        "description": "DevOps role",
+        "skills": [],
+        "responsibilities": [],
+        "experience_required": null,
+        "certification_requirement": null,
+        "posted_date": null,
+        "source": null,
+        "job_url": null,
+        "is_active": true,
+        "discovered_at": "2026-08-31T10:42:16.422689",
+        "status": "ANALYZED"
+    },
+    {
+        "id": 2,
+        "title": "Cloud Engineer",
+        "company": "Cloud Systems",
+        "location": "Bangalore",
+        "description": "Cloud role",
+        "skills": [],
+        "responsibilities": [],
+        "experience_required": null,
+        "certification_requirement": null,
+        "posted_date": null,
+        "source": null,
+        "job_url": null,
+        "is_active": true,
+        "discovered_at": "2026-08-31T10:42:16.422707",
+        "status": "SHORTLISTED"
+    }
+]

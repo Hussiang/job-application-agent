@@ -1,0 +1,57 @@
+# Maximum possible job match score: 100
+
+core_skills:
+  - AWS
+  - Linux
+  - Docker
+  - Kubernetes
+  - Terraform
+  - Jenkins
+  
+weights:
+  role_match: 30
+  skill_match: 25
+  core_skill_weight: 2
+  supporting_skill_weight: 1
+  experience_match: 15
+  certification_match: 10
+  responsibilities_match: 10
+  bonus: 10
+
+role_match:
+  high_priority: 30
+  medium_priority: 20
+  related_role: 10
+  unrelated_role: 0
+
+
+experience_match:
+  within_preferred_range: 15
+  slightly_above_preferred: 8
+  significantly_above_preferred: 0
+
+
+certification_match:
+  aws_required_or_preferred: 10
+  aws_relevant: 5
+  no_certification_match: 0
+
+
+bonus_keywords:
+  - Automation
+  - CI/CD
+  - Infrastructure as Code
+  - Production Support
+  - Incident Management
+  - Root Cause Analysis
+  - Troubleshooting
+  - Monitoring
+
+
+penalties:
+  senior_role: -20
+  lead_role: -25
+  principal_role: -30
+  architect_role: -25
+  manager_role: -30
+  experience_far_above_profile: -30

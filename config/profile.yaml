@@ -1,0 +1,122 @@
+candidate:
+  name: "Shaik Gulam Hussain"
+
+current_position:
+  title: "Content Operations Specialist"
+  company: "Amazon"
+  experience_years: 4
+
+professional_focus:
+  primary:
+    - Cloud Operations
+    - DevOps
+    - Cloud Engineering
+
+  secondary:
+    - Application Support
+    - Platform Operations
+    - Production Support
+    - Site Reliability Engineering
+
+certifications:
+  - "AWS Certified Solutions Architect - Associate"
+
+skills:
+
+  cloud:
+    - AWS
+    - EC2
+    - EKS
+    - ECR
+    - IAM
+    - VPC
+    - S3
+    - RDS
+    - ALB
+    - Route 53
+    - CloudWatch
+    - SNS
+    - Secrets Manager
+
+  containers:
+    - Docker
+    - Kubernetes
+    - Helm
+
+  infrastructure_as_code:
+    - Terraform
+    - AWS CloudFormation
+
+  cicd:
+    - Jenkins
+    - Git
+
+  monitoring:
+    - Amazon CloudWatch
+    - Prometheus
+    - Grafana
+
+  operating_systems:
+    - Linux
+    - Ubuntu
+    - Amazon Linux 2023
+
+  programming:
+    - Python
+    - Bash
+
+  database:
+    - PostgreSQL
+
+experience_keywords:
+  - Production Operations
+  - Production Support
+  - Incident Management
+  - Incident Troubleshooting
+  - Root Cause Analysis
+  - Deployment Support
+  - Release Management
+  - Change Management
+  - CI/CD
+  - Infrastructure as Code
+  - Cloud Automation
+  - Monitoring
+  - Observability
+  - Kubernetes Operations
+
+target_roles:
+
+  high_priority:
+    - Junior DevOps Engineer
+    - Associate DevOps Engineer
+    - DevOps Engineer
+    - Cloud Engineer
+    - Cloud Operations Engineer
+    - Cloud Support Engineer
+    - Application Support Engineer
+    - Platform Engineer
+    - Linux Engineer
+
+  medium_priority:
+    - Site Reliability Engineer
+    - Systems Engineer
+    - Infrastructure Engineer
+    - Cloud Infrastructure Engineer
+
+job_preferences:
+
+  experience_range:
+    minimum_years: 0
+    preferred_maximum_years: 4
+
+  exclude_keywords:
+    - Senior
+    - Lead
+    - Principal
+    - Architect
+    - Manager
+    - Director
+
+resume_versions:
+  conservative: "V3"
+  aggressive: "V2"
