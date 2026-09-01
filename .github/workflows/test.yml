@@ -34,3 +34,6 @@ jobs:
       - name: Build Docker image
         run: |
           docker build -t job-application-agent .
+      - name: Validate Docker Compose configuration
+        run: |
+          docker compose config

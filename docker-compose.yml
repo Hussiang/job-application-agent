@@ -1,0 +1,11 @@
+services:
+  job-application-agent:
+    build: .
+    container_name: job-application-agent
+    stdin_open: true
+    tty: true
+    volumes:
+      - job_agent_data:/app/data
+
+volumes:
+  job_agent_data:
