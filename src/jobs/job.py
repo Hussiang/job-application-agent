@@ -2,14 +2,17 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional
 
+
 VALID_JOB_STATUSES = [
     "NEW",
     "ANALYZED",
     "SHORTLISTED",
     "APPLIED",
     "REJECTED",
-    "ARCHIVED"
+    "ARCHIVED",
 ]
+
+
 @dataclass
 class Job:
     job_id: int
@@ -33,6 +36,18 @@ class Job:
     discovered_at: str = field(
         default_factory=lambda: datetime.now().isoformat()
     )
+
+    first_seen: str = field(
+        default_factory=lambda: datetime.now().isoformat()
+    )
+
+    last_seen: str = field(
+        default_factory=lambda: datetime.now().isoformat()
+    )
+
+    active: bool = True
+
+    telegram_notified: bool = False
 
     status: str = "NEW"
 
@@ -67,7 +82,9 @@ class Job:
                 + ", ".join(missing_fields)
             )
 
-        normalized_status = (self.status or "").upper().strip()
+        normalized_status = (
+            self.status or ""
+        ).upper().strip()
 
         if normalized_status not in VALID_JOB_STATUSES:
             raise ValueError(
@@ -85,7 +102,8 @@ class Job:
         self.skills = [
             skill.strip()
             for skill in self.skills
-            if isinstance(skill, str) and skill.strip()
+            if isinstance(skill, str)
+            and skill.strip()
         ]
 
         self.responsibilities = [
@@ -128,6 +146,10 @@ class Job:
             "job_url": self.job_url,
             "is_active": self.is_active,
             "discovered_at": self.discovered_at,
+            "first_seen": self.first_seen,
+            "last_seen": self.last_seen,
+            "active": self.active,
+            "telegram_notified": self.telegram_notified,
             "status": self.status,
         }
 
@@ -139,13 +161,16 @@ class Job:
             company=data["company"],
             location=data.get(
                 "location",
-                "Not specified"
+                "Not specified",
             ),
             description=data["description"],
-            skills=data.get("skills", []),
+            skills=data.get(
+                "skills",
+                [],
+            ),
             responsibilities=data.get(
                 "responsibilities",
-                []
+                [],
             ),
             experience_required=data.get(
                 "experience_required"
@@ -153,13 +178,47 @@ class Job:
             certification_requirement=data.get(
                 "certification_requirement"
             ),
-            posted_date=data.get("posted_date"),
-            source=data.get("source"),
-            job_url=data.get("job_url"),
-            is_active=data.get("is_active", True),
+            posted_date=data.get(
+                "posted_date"
+            ),
+            source=data.get(
+                "source"
+            ),
+            job_url=data.get(
+                "job_url"
+            ),
+            is_active=data.get(
+                "is_active",
+                True,
+            ),
             discovered_at=data.get(
                 "discovered_at",
-                datetime.now().isoformat()
+                datetime.now().isoformat(),
             ),
-            status=data.get("status", "NEW"),
+            first_seen=data.get(
+                "first_seen",
+                data.get(
+                    "discovered_at",
+                    datetime.now().isoformat(),
+                ),
+            ),
+            last_seen=data.get(
+                "last_seen",
+                data.get(
+                    "discovered_at",
+                    datetime.now().isoformat(),
+                ),
+            ),
+            active=data.get(
+                "active",
+                True,
+            ),
+            telegram_notified=data.get(
+                "telegram_notified",
+                False,
+            ),
+            status=data.get(
+                "status",
+                "NEW",
+            ),
         )

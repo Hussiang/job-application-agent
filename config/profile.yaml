@@ -111,12 +111,69 @@ job_preferences:
 
   exclude_keywords:
     - Senior
+    - Sr
     - Lead
     - Principal
     - Architect
     - Manager
     - Director
+    - AVP
+    - Vice President
+    - VP
+    - Head
+    - Staff
+  
+  required_title_keywords:
+    - DevOps
+    - Cloud
+    - Site Reliability
+    - SRE
+    - Platform
+    - Linux
+    - System Administrator
+    - Application Support
+
+  exclude_title_keywords:
+    - Data Platform
+    - AI Platform
+    - Java Platform
+    - RPA
+    - UiPath
+    - Banking
+    - Salesforce
+    - QA
+    - Testing
+    - Golang  
 
 resume_versions:
   conservative: "V3"
   aggressive: "V2"
+
+job_discovery:
+
+  locations:
+    - Hyderabad
+    - Bengaluru
+    - Remote
+
+  results_per_search: 10
+
+  search_keywords:
+    - AWS
+    - Linux
+    - Docker
+    - Kubernetes
+    - Terraform
+    - Jenkins
+    - CI/CD
+    - Python
+    - Monitoring
+
+  notifications:
+  telegram:
+    enabled: true
+    minimum_score: 45
+    recommendations:
+      - STRONG APPLY
+      - APPLY
+      - CONSIDER 

@@ -1,14 +1,16 @@
 def get_top_jobs(
     ranked_jobs,
-    limit=5
+    limit=5,
 ):
     eligible_jobs = [
         result
         for result in ranked_jobs
         if result["recommendation"] in [
             "STRONG APPLY",
-            "APPLY"
+            "APPLY",
+            "CONSIDER",
         ]
+        and result["job"].active
     ]
 
     return eligible_jobs[:limit]
@@ -16,18 +18,18 @@ def get_top_jobs(
 
 def show_top_jobs(
     ranked_jobs,
-    limit=5
+    limit=5,
 ):
     top_jobs = get_top_jobs(
         ranked_jobs,
-        limit
+        limit,
     )
 
     print("\nTOP JOB OPPORTUNITIES\n")
 
     if not top_jobs:
         print(
-            "No suitable jobs found "
+            "No active relevant jobs found "
             "for the current profile."
         )
         return
@@ -45,14 +47,16 @@ def show_top_jobs(
 
     for position, result in enumerate(
         top_jobs,
-        start=1
+        start=1,
     ):
         job = result["job"]
+
+        role = job.title[:29]
 
         print(
             f"{position:<6}"
             f"{job.job_id:<8}"
-            f"{job.title:<30}"
+            f"{role:<30}"
             f"{job.company:<22}"
             f"{result['score']:<10}"
             f"{result['recommendation']}"
