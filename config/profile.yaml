@@ -170,10 +170,10 @@ job_discovery:
     - Monitoring
 
   notifications:
-  telegram:
-    enabled: true
-    minimum_score: 45
-    recommendations:
+    telegram:
+      enabled: true
+      minimum_score: 45
+      recommendations:
       - STRONG APPLY
       - APPLY
-      - CONSIDER 
+      - CONSIDER
