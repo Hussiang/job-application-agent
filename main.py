@@ -9,6 +9,12 @@ from src.core.config_loader import (
     load_profile,
     load_scoring,
 )
+from src.discovery.job_discovery_service import (
+    JobDiscoveryService,
+)
+from src.discovery.search_query_builder import (
+    build_search_queries,
+)
 from src.intake.job_intake import collect_job_posting
 from src.intake.job_metadata_extractor import (
     extract_job_metadata,
@@ -25,8 +31,15 @@ from src.jobs.job_ranker import rank_job
 from src.jobs.job_repository import JobRepository
 from src.jobs.job_search_menu import handle_job_search
 from src.jobs.job_shortlist import show_top_jobs
+from src.sources.adzuna_job_source import (
+    AdzunaJobSource,
+)
 from src.sources.json_job_source import JsonJobSource
-
+from src.jobs.job_lifecycle_service import JobLifecycleService
+from src.notifications.telegram_notifier import TelegramNotifier
+from src.notifications.job_notification_service import (
+    JobNotificationService,
+)
 
 def load_jobs():
     source = JsonJobSource(
@@ -113,6 +126,138 @@ def add_new_job(
     )
 
 
+def discover_live_jobs(
+    jobs,
+    profile,
+    scoring,
+    job_repository,
+):
+    discovery_config = profile.get(
+        "job_discovery",
+        {}
+    )
+
+    locations = discovery_config.get(
+        "locations",
+        []
+    )
+
+    results_per_search = discovery_config.get(
+        "results_per_search",
+        10
+    )
+
+    notification_config = (
+        profile
+        .get("notifications", {})
+        .get("telegram", {})
+    )
+
+    queries = build_search_queries(
+        profile
+    )
+
+    if not queries:
+        print(
+            "\nNo job discovery queries were generated."
+        )
+        return []
+
+    print(
+        f"\nStarting live job discovery "
+        f"with {len(queries)} searches..."
+    )
+
+    job_source = AdzunaJobSource(
+        locations=locations,
+        results_per_search=results_per_search,
+    )
+
+    discovery_service = JobDiscoveryService(
+        job_source=job_source,
+        job_repository=job_repository,
+        profile=profile,
+    )
+
+    discovery_result = discovery_service.discover_jobs(
+    queries=queries,
+    existing_jobs=jobs,
+)
+
+    new_jobs = discovery_result["new_jobs"]
+    changed_jobs = discovery_result["changed_jobs"]
+
+    discovered_jobs = new_jobs + changed_jobs
+
+    print("\nLive discovery completed.")
+    print(
+    f"New jobs discovered: "
+    f"{len(new_jobs)}"
+)
+
+    print(
+    f"Changed jobs detected: "
+    f"{len(changed_jobs)}"
+)
+
+    if not discovered_jobs:
+     print(
+        "\nNo new or changed jobs available "
+        "for ranking."
+    )
+    return []
+
+    print(
+        "\nRanking newly discovered jobs..."
+    )
+
+    ranked_discovered_jobs = [
+    rank_job(
+        job,
+        profile,
+        scoring,
+    )
+    for job in discovered_jobs
+]
+
+    ranked_discovered_jobs.sort(
+    key=lambda item: item["score"],
+    reverse=True,
+)
+
+    telegram_notifier = TelegramNotifier()
+
+    notification_service = JobNotificationService(
+        notifier=telegram_notifier,
+        notification_config=notification_config,
+    )
+
+    notifications_sent = (
+        notification_service.notify_new_jobs(
+            ranked_discovered_jobs
+        )
+    )
+
+    if notifications_sent:
+        job_repository.save_jobs(jobs)
+
+    print(
+        f"\nTelegram notifications sent: "
+        f"{notifications_sent}"
+    )
+
+    print(
+      "\n========== NEW / CHANGED JOB RECOMMENDATIONS =========="
+    )
+
+    show_top_jobs(
+    ranked_discovered_jobs,
+    limit=len(ranked_discovered_jobs),
+)
+
+    return discovered_jobs
+
+
 def rank_all_jobs(
     jobs,
     profile,
@@ -172,7 +317,8 @@ def show_main_menu():
     print("4. Update application status")
     print("5. View application dashboard")
     print("6. Search and filter jobs")
-    print("7. Exit")
+    print("7. Discover live jobs")
+    print("8. Exit")
 
 
 def main():
@@ -238,6 +384,14 @@ def main():
             handle_job_search(jobs)
 
         elif choice == "7":
+            discovered_jobs = discover_live_jobs(
+                jobs,
+                profile,
+                scoring,
+                job_repository,
+            )
+
+        elif choice == "8":
             print(
                 "\nExiting Job Application Agent."
             )

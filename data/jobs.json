@@ -13,8 +13,13 @@
         "source": null,
         "job_url": null,
         "is_active": true,
-        "discovered_at": "2026-08-31T10:42:16.422689",
-        "status": "ANALYZED"
+        "discovered_at": "2026-09-08T10:17:51.683627",
+        "first_seen": "2026-09-08T10:17:51.683640",
+        "last_seen": "2026-09-08T10:17:51.683641",
+        "active": true,
+        "telegram_notified": false,
+        "status": "ANALYZED",
+        "notification_hash": null
     },
     {
         "id": 2,
@@ -30,7 +35,12 @@
         "source": null,
         "job_url": null,
         "is_active": true,
-        "discovered_at": "2026-08-31T10:42:16.422707",
-        "status": "SHORTLISTED"
+        "discovered_at": "2026-09-08T10:17:51.683650",
+        "first_seen": "2026-09-08T10:17:51.683650",
+        "last_seen": "2026-09-08T10:17:51.683651",
+        "active": true,
+        "telegram_notified": false,
+        "status": "SHORTLISTED",
+        "notification_hash": null
     }
 ]

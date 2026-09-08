@@ -62,33 +62,45 @@ def main():
         profile=profile,
     )
 
-    discovered_jobs = discovery_service.discover_jobs(
-        queries=queries,
-        existing_jobs=jobs,
-    )
+    discovery_result = discovery_service.discover_jobs(
+    queries=queries,
+    existing_jobs=jobs,
+)
+
+    new_jobs = discovery_result["new_jobs"]
+    changed_jobs = discovery_result["changed_jobs"]
+
+    discovered_jobs = new_jobs + changed_jobs
 
     print(
-        f"\nNew jobs discovered: "
-        f"{len(discovered_jobs)}"
+    f"\nNew jobs discovered: "
+    f"{len(new_jobs)}"
+)
+
+    print(
+    f"Changed jobs detected: "
+    f"{len(changed_jobs)}"
     )
 
     if not discovered_jobs:
-        print("No new jobs to rank or notify.")
-        return
-
-    ranked_jobs = [
-        rank_job(
-            job,
-            profile,
-            scoring,
-        )
-        for job in discovered_jobs
-    ]
-
-    ranked_jobs.sort(
-        key=lambda item: item["score"],
-        reverse=True,
+     print(
+        "No new or changed jobs to rank or notify."
     )
+    return
+
+    ranked_discovered_jobs = [
+    rank_job(
+        job,
+        profile,
+        scoring,
+    )
+    for job in discovered_jobs
+]
+
+    ranked_discovered_jobs.sort(
+    key=lambda item: item["score"],
+    reverse=True,
+)
 
     notifier = TelegramNotifier()
 
@@ -99,7 +111,7 @@ def main():
 
     notifications_sent = (
         notification_service.notify_new_jobs(
-            ranked_jobs
+            ranked_discovered_jobs
         )
     )
 

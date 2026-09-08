@@ -48,6 +48,7 @@ class Job:
     active: bool = True
 
     telegram_notified: bool = False
+    notification_hash: Optional[str] = None
 
     status: str = "NEW"
 
@@ -151,6 +152,7 @@ class Job:
             "active": self.active,
             "telegram_notified": self.telegram_notified,
             "status": self.status,
+            "notification_hash": self.notification_hash,
         }
 
     @classmethod
@@ -220,5 +222,8 @@ class Job:
             status=data.get(
                 "status",
                 "NEW",
+            ),
+            notification_hash=data.get(
+            "notification_hash"
             ),
         )
