@@ -10,7 +10,12 @@ from src.notifications.job_notification_service import (
     JobNotificationService,
 )
 from main import build_search_queries
-
+from src.applications.application_tracker import (
+    load_applications,
+)
+from src.notifications.daily_digest_service import (
+    DailyDigestService,
+)
 
 DATA_FILE = "data/jobs.json"
 
@@ -132,6 +137,48 @@ def main():
         limit=len(ranked_jobs),
     )
 
+    applications = load_applications()
 
-if __name__ == "__main__":
-    main()
+    digest_service = DailyDigestService(
+    notifier
+)
+
+    digest_sent = digest_service.send_digest(
+    ranked_discovered_jobs,
+    applications,
+    minimum_score=notification_config.get(
+        "minimum_score",
+        45,
+    ),
+)
+
+    print(
+    f"Daily digest sent: {digest_sent}"
+)
+    if not discovered_jobs:
+     print(
+        "No new or changed jobs found."
+    )
+
+    applications = load_applications()
+
+    notifier = TelegramNotifier()
+
+    digest_service = DailyDigestService(
+        notifier
+    )
+
+    digest_sent = digest_service.send_digest(
+        [],
+        applications,
+        minimum_score=notification_config.get(
+            "minimum_score",
+            45,
+        ),
+    )
+
+    print(
+        f"Daily digest sent: {digest_sent}"
+    )
+
+    return
