@@ -1,609 +1,984 @@
 # Job Application Agent
 
-A Python-based CLI application that helps analyze job postings, rank job opportunities against a candidate profile, manage job decisions, prepare application information, and track applications.
+An automated Python-based job discovery and application tracking system that finds relevant DevOps, Cloud, Linux, Platform, and Application Support opportunities, evaluates them against a candidate profile, tracks job freshness, sends Telegram notifications, generates daily digests, and manages application progress.
 
-The project reduces the manual effort involved in reviewing multiple job opportunities and deciding which roles should be prioritized.
+## Project Overview
 
----
+The Job Application Agent automates repetitive parts of a technical job search.
 
-# Features
+The system is designed to:
 
-## Job Intake
+- discover jobs from the Adzuna API
+- search across multiple target roles and locations
+- filter irrelevant roles using configurable profile rules
+- detect duplicate job listings
+- track when jobs were first and last seen
+- mark stale jobs inactive
+- reactivate jobs that appear again
+- score and rank jobs against a candidate profile
+- send qualifying job alerts through Telegram
+- generate a daily Telegram job digest
+- track applications and interview progress
+- search and filter stored jobs
+- run automated tests with pytest
+- run scheduled discovery using GitHub Actions
 
-The application allows a user to add a new job posting by pasting a job description.
-
-The system:
-
-* Collects the job posting
-* Extracts available metadata
-* Identifies job title, company, and location
-* Parses the job description
-* Extracts known skills
-* Extracts experience requirements
-* Extracts certification requirements
-* Detects duplicate jobs before saving
-
----
-
-## Job Ranking
-
-Each job is analyzed against the candidate profile using a weighted scoring system.
-
-The ranking considers:
-
-* Role alignment
-* Required skill match
-* Responsibility match
-* Experience requirements
-* Certification requirements
-* Bonus keywords
-* Penalties for major mismatches
-
-Each ranked job includes:
-
-* Overall score
-* Recommendation
-* Eligibility analysis
-* Skill analysis
-* Matched skills
-* Missing skills
-* Matched responsibilities
-* Fit explanation
-* Application priority
-* Recommended action
-* Resume tailoring suggestions
-
-Jobs are sorted from highest to lowest score.
-
----
-
-## Job Recommendations
-
-Jobs receive a recommendation based on their ranking score and eligibility:
-
-* `STRONG APPLY`
-* `APPLY`
-* `SKIP`
-
-The application also displays the highest-ranked opportunities separately.
-
----
-
-# Job Lifecycle Management
-
-Job lifecycle statuses are separate from ranking recommendations.
-
-Supported lifecycle statuses:
+## Main Architecture
 
 ```text
-NEW
-ANALYZED
-SHORTLISTED
+                         +------------------+
+                         |    Adzuna API    |
+                         +--------+---------+
+                                  |
+                                  v
+                     +------------------------+
+                     |    Job Discovery       |
+                     |       Service          |
+                     +-----------+------------+
+                                 |
+                                 v
+                     +------------------------+
+                     |    Relevance Filter    |
+                     +-----------+------------+
+                                 |
+                                 v
+                     +------------------------+
+                     | Duplicate Detection    |
+                     | + Lifecycle Management |
+                     +-----------+------------+
+                                 |
+                                 v
+                     +------------------------+
+                     |      Job Ranker        |
+                     +-----------+------------+
+                                 |
+                    +------------+------------+
+                    |                         |
+                    v                         v
+          +------------------+      +--------------------+
+          |   jobs.json      |      | Telegram Alerts    |
+          +--------+---------+      +--------------------+
+                   |
+                   v
+          +----------------------+
+          | Application Tracker  |
+          +----------+-----------+
+                     |
+                     v
+          +----------------------+
+          | Application Dashboard|
+          +----------------------+
+
+                  GitHub Actions
+                        |
+                        v
+               Scheduled Discovery
+```
+
+## Key Features
+
+### 1. Live Job Discovery
+
+The system uses the Adzuna API to discover jobs using combinations of target roles and locations.
+
+Current configured locations:
+
+- Hyderabad
+- Bengaluru
+- Remote
+
+Current high-priority roles:
+
+- Junior DevOps Engineer
+- Associate DevOps Engineer
+- DevOps Engineer
+- Cloud Engineer
+- Cloud Operations Engineer
+- Cloud Support Engineer
+- Application Support Engineer
+- Platform Engineer
+- Linux Engineer
+
+Current medium-priority roles:
+
+- Site Reliability Engineer
+- Systems Engineer
+- Infrastructure Engineer
+- Cloud Infrastructure Engineer
+
+The query builder generates role/location search combinations from `config/profile.yaml`.
+
+### 2. Relevance Filtering
+
+Jobs are filtered before ranking.
+
+The filter evaluates job titles against required and excluded keywords.
+
+Typical excluded signals include:
+
+- Senior
+- Sr
+- Lead
+- Principal
+- Architect
+- Manager
+- Director
+- AVP
+- Vice President
+- VP
+- Head
+- Staff
+
+Additional title exclusions include examples such as:
+
+- Data Platform
+- AI Platform
+- Java Platform
+- RPA
+- UiPath
+- Banking
+- Salesforce
+- QA
+- Testing
+- Golang
+
+These rules are configurable in `config/profile.yaml`.
+
+### 3. Job Ranking
+
+Jobs are scored against the candidate profile and scoring configuration.
+
+The profile includes skills and experience relevant to:
+
+- AWS
+- EC2
+- EKS
+- ECR
+- IAM
+- VPC
+- S3
+- RDS
+- ALB
+- Route 53
+- CloudWatch
+- SNS
+- Secrets Manager
+- Docker
+- Kubernetes
+- Helm
+- Terraform
+- AWS CloudFormation
+- Jenkins
+- Git
+- Prometheus
+- Grafana
+- Linux
+- Ubuntu
+- Amazon Linux 2023
+- Python
+- Bash
+- PostgreSQL
+
+The candidate profile also includes production-oriented experience keywords such as:
+
+- Production Operations
+- Production Support
+- Incident Management
+- Incident Troubleshooting
+- Root Cause Analysis
+- Deployment Support
+- Release Management
+- Change Management
+- CI/CD
+- Infrastructure as Code
+- Cloud Automation
+- Monitoring
+- Observability
+- Kubernetes Operations
+
+### 4. Recommendations
+
+Jobs are classified into recommendation categories such as:
+
+- STRONG APPLY
+- APPLY
+- CONSIDER
+- SKIP
+
+The scoring configuration is maintained separately in `config/scoring.yaml`.
+
+### 5. Duplicate Detection
+
+The system prevents repeated storage of the same job across overlapping searches.
+
+Duplicate detection uses:
+
+1. normalized job URL when available
+2. normalized job title + company combination
+
+This is especially important because multiple role/location queries can return the same listing.
+
+### 6. Job Freshness and Lifecycle
+
+Each job tracks:
+
+- `first_seen`
+- `last_seen`
+- `active`
+
+When a job is discovered for the first time:
+
+```text
+active = true
+first_seen = current time
+last_seen = current time
+```
+
+When an existing job is found again:
+
+```text
+last_seen = current time
+```
+
+Jobs that have not been seen within the configured stale period can be marked inactive.
+
+If an inactive job appears again during discovery, it is reactivated.
+
+This allows the system to retain historical job information instead of deleting old records.
+
+### 7. Meaningful Change Detection
+
+Not every source-side change is treated as a meaningful change.
+
+Meaningful fields include:
+
+- title
+- company
+- location
+- skills
+- responsibilities
+- experience requirement
+- certification requirement
+
+Source changes such as redirect URL changes should not automatically trigger another notification.
+
+The discovery service therefore separates:
+
+```text
+new jobs
+changed jobs
+unchanged duplicates
+```
+
+### 8. Telegram Notifications
+
+The system integrates with the Telegram Bot API.
+
+Notification configuration is stored in `config/profile.yaml`.
+
+Example:
+
+```yaml
+notifications:
+  telegram:
+    enabled: true
+    minimum_score: 45
+    recommendations:
+      - STRONG APPLY
+      - APPLY
+      - CONSIDER
+```
+
+The notification layer uses:
+
+- `TelegramNotifier`
+- `JobNotificationService`
+- `notification_hash`
+- `telegram_notified`
+
+These mechanisms reduce repeated alerts.
+
+### 9. Notification Fingerprinting
+
+A notification fingerprint is generated from meaningful job information and recommendation/score data.
+
+The fingerprint is stored as:
+
+```text
+notification_hash
+```
+
+Together with:
+
+```text
+telegram_notified
+```
+
+this prevents the same opportunity from being repeatedly sent to Telegram.
+
+### 10. Daily Job Digest
+
+The system generates a daily Telegram digest containing:
+
+- number of qualifying jobs
+- recommendation counts
+- top opportunities
+- application status counts
+
+The digest is implemented in:
+
+```text
+src/notifications/daily_digest_service.py
+```
+
+### 11. Application Tracking
+
+Application data is stored separately from discovered job data.
+
+Application information includes:
+
+- job ID
+- title
+- company
+- application status
+- applied date
+- interview date
+- follow-up date
+- notes
+- resume version
+- application URL
+- last updated timestamp
+
+Application statuses include:
+
+- APPLIED
+- INTERVIEW
+- OFFER
+- REJECTED
+- WITHDRAWN
+
+### 12. Application Dashboard
+
+The dashboard reports:
+
+- total applications
+- applied count
+- interview count
+- offer count
+- rejected count
+- withdrawn count
+- response rate
+- interview rate
+- offer rate
+
+It also displays application details, interview dates, follow-up dates, and notes.
+
+### 13. Search and Filtering
+
+The CLI supports:
+
+- keyword search
+- status filtering
+- active-job filtering
+- minimum-score filtering
+- recommendation filtering
+
+Keyword search can cover:
+
+- job title
+- company
+- location
+- description
+- skills
+
+Example searches include:
+
+```text
+DevOps
+Cloud
+Linux
+AWS
+Kubernetes
+Hyderabad
+Docker
+Terraform
+```
+
+## Application Lifecycle
+
+The application lifecycle is intentionally separated from job discovery lifecycle.
+
+Typical application progression:
+
+```text
 APPLIED
+   |
+   v
+INTERVIEW
+   |
+   v
+OFFER
+```
+
+Alternate outcomes include:
+
+```text
 REJECTED
-ARCHIVED
+WITHDRAWN
 ```
 
-The ranking recommendation does not replace the lifecycle status system.
+Job discovery state and application state are independent.
 
-### Automatic Ranking Status Updates
-
-When a job is ranked:
+For example:
 
 ```text
-NEW + STRONG APPLY
-        ↓
-SHORTLISTED
+Job:
+active = true
+
+Application:
+status = INTERVIEW
 ```
+
+A job can therefore remain active in discovery while an application for it is already in interview stage.
+
+## Repository Structure
 
 ```text
-NEW + APPLY
-        ↓
-SHORTLISTED
+job-application-agent/
+|
++-- .github/
+|   +-- workflows/
+|       +-- test.yml
+|       +-- job-discovery.yml
+|
++-- config/
+|   +-- profile.yaml
+|   +-- scoring.yaml
+|
++-- data/
+|   +-- applications.json
+|   +-- jobs.json
+|
++-- docs/
+|   +-- ARCHITECTURE.md
+|   +-- SETUP.md
+|   +-- JOB-LIFECYCLE.md
+|   +-- OPERATIONS.md
+|
++-- src/
+|   +-- application_package/
+|   +-- applications/
+|   +-- core/
+|   +-- discovery/
+|   +-- intake/
+|   +-- jobs/
+|   +-- notifications/
+|   +-- sources/
+|
++-- tests/
+|   +-- test_daily_digest.py
+|   +-- test_job_filters.py
+|   +-- test_job_notifications.py
+|   +-- test_job_repository.py
+|
++-- Dockerfile
++-- docker-compose.yml
++-- main.py
++-- run_discovery.py
++-- requirements.txt
++-- README.md
 ```
+
+## Technology Stack
+
+### Programming
+
+- Python 3.14
+
+### Libraries
+
+- requests
+- python-dotenv
+- PyYAML
+- pytest
+
+### APIs and Services
+
+- Adzuna API
+- Telegram Bot API
+- GitHub Actions
+
+### DevOps Technologies
+
+- Git
+- GitHub
+- Docker
+- Docker Compose
+- Linux / WSL
+
+## Configuration
+
+### Candidate Profile
 
 ```text
-NEW + SKIP
-        ↓
-ANALYZED
+config/profile.yaml
 ```
 
-The following statuses are protected from automatic ranking updates:
+Controls:
 
-* `SHORTLISTED`
-* `APPLIED`
-* `REJECTED`
-* `ARCHIVED`
+- candidate details
+- target roles
+- skills
+- experience preferences
+- exclusion rules
+- job locations
+- discovery configuration
+- Telegram notification configuration
 
-This prevents future ranking runs from overwriting manually shortlisted or completed jobs.
-
----
-
-# Duplicate Detection
-
-Before saving a new job, the application checks for duplicates.
-
-Duplicate detection currently compares:
-
-* Job title
-* Company
-* Job URL, when available
-
-This prevents the same job from being added multiple times.
-
----
-
-# Application Management
-
-Shortlisted jobs can be prepared for application.
-
-The workflow is:
+### Scoring
 
 ```text
-SHORTLISTED Job
-        ↓
-Generate Application Package
-        ↓
-Review Application Information
-        ↓
-Confirm Application
-        ↓
-Create Application Record
-        ↓
-Update Job Status to APPLIED
+config/scoring.yaml
 ```
 
-Application records contain:
+Controls job scoring behavior.
 
-* Job ID
-* Job title
-* Company
-* Application status
-* Applied date
+## Local Setup
 
-Supported application statuses:
+### Prerequisites
 
-* `APPLIED`
-* `INTERVIEW`
-* `OFFER`
-* `REJECTED`
+Recommended:
 
----
+- Python 3.14
+- Git
+- VS Code
+- WSL/Linux environment
 
-# Application Dashboard
+Optional:
 
-The application dashboard provides a summary of tracked applications.
+- Docker
+- Docker Compose
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/Hussiang/job-application-agent.git
+cd job-application-agent
+```
+
+### Create Virtual Environment
+
+```bash
+python3 -m venv .venv
+```
+
+### Activate Virtual Environment
+
+```bash
+source .venv/bin/activate
+```
+
+### Verify Python
+
+```bash
+which python3
+python3 --version
+```
+
+### Install Dependencies
+
+```bash
+python3 -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install pytest
+```
+
+## Environment Variables
+
+Create a local `.env` file in the project root.
 
 Example:
 
 ```text
-APPLICATION SUMMARY
-
-Total Applications: 6
-Applied: 5
-Interview: 1
-Offer: 0
-Rejected: 0
+ADZUNA_APP_ID=your_adzuna_app_id
+ADZUNA_APP_KEY=your_adzuna_app_key
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_CHAT_ID=your_telegram_chat_id
 ```
 
-The dashboard also displays individual application details.
+Never commit `.env`.
 
----
+## Telegram Setup
 
-# Job Search and Filtering
+1. Open Telegram.
+2. Open BotFather.
+3. Create a bot.
+4. Copy the generated bot token.
+5. Put the token into `.env`.
+6. Send a message to the bot.
+7. Retrieve the chat ID.
+8. Put the chat ID into `.env`.
 
-The application includes an interactive search and filtering menu.
-
-Users can:
-
-1. Search jobs by keyword
-2. Filter jobs by lifecycle status
-3. Show all jobs
-4. Exit
-
-Jobs can be searched using:
-
-* Job title
-* Company name
-
-Jobs can also be filtered using lifecycle statuses.
-
----
-
-# CLI Menu
-
-The application uses a menu-driven workflow.
+Example:
 
 ```text
-JOB APPLICATION AGENT
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+```
 
+## Adzuna Setup
+
+Create an Adzuna developer account and obtain:
+
+```text
+ADZUNA_APP_ID
+ADZUNA_APP_KEY
+```
+
+Place both values in `.env`.
+
+## Run the Interactive Application
+
+```bash
+python3 main.py
+```
+
+Main menu:
+
+```text
 1. Add and analyze a new job
 2. Rank all jobs
 3. Manage applications
 4. Update application status
 5. View application dashboard
 6. Search and filter jobs
-7. Exit
+7. Discover live jobs
+8. Exit
 ```
 
-This allows each feature to be used independently instead of forcing the user through the entire workflow every time the application starts.
+## Run Automated Discovery
 
----
-
-# Project Structure
-
-```text
-job-application-agent/
-│
-├── main.py
-├── README.md
-├── requirements.txt
-├── .gitignore
-│
-├── config/
-│   ├── profile.yaml
-│   └── scoring.yaml
-│
-├── data/
-│   ├── jobs.json
-│   └── applications.json
-│
-├── src/
-│   ├── applications/
-│   │   ├── application_actions.py
-│   │   ├── application_dashboard.py
-│   │   ├── application_model.py
-│   │   └── application_tracker.py
-│   │
-│   ├── application_package/
-│   │   ├── package_display.py
-│   │   └── package_generator.py
-│   │
-│   ├── core/
-│   │   ├── config_loader.py
-│   │   └── skill_normalizer.py
-│   │
-│   ├── intake/
-│   │   ├── job_intake.py
-│   │   └── job_metadata_extractor.py
-│   │
-│   ├── jobs/
-│   │   ├── job.py
-│   │   ├── job_actions.py
-│   │   ├── job_display.py
-│   │   ├── job_filters.py
-│   │   ├── job_parser.py
-│   │   ├── job_ranker.py
-│   │   ├── job_repository.py
-│   │   ├── job_search_menu.py
-│   │   └── job_shortlist.py
-│   │
-│   ├── resume/
-│   │   └── __init__.py
-│   │
-│   └── sources/
-│       ├── job_source.py
-│       └── json_job_source.py
-│
-└── tests/
-    ├── test_job_filters.py
-    └── test_job_repository.py
-```
-
----
-
-# Architecture
-
-The application follows a modular architecture with separation between intake, parsing, ranking, persistence, workflow management, and presentation.
-
-```text
-                 ┌──────────────────┐
-                 │    Job Intake     │
-                 └────────┬─────────┘
-                          │
-                          ▼
-                 ┌──────────────────┐
-                 │   Metadata       │
-                 │   Extraction     │
-                 └────────┬─────────┘
-                          │
-                          ▼
-                 ┌──────────────────┐
-                 │   Job Parser     │
-                 │ Skills / Exp /   │
-                 │ Certification    │
-                 └────────┬─────────┘
-                          │
-                          ▼
-                 ┌──────────────────┐
-                 │ Job Repository   │
-                 │    jobs.json     │
-                 └────────┬─────────┘
-                          │
-                          ▼
-                 ┌──────────────────┐
-                 │   Job Ranking    │
-                 │ Candidate Match  │
-                 └────────┬─────────┘
-                          │
-                          ▼
-                 ┌──────────────────┐
-                 │ Job Lifecycle    │
-                 │   Management     │
-                 └────────┬─────────┘
-                          │
-                          ▼
-                 ┌──────────────────┐
-                 │ Application      │
-                 │ Tracking         │
-                 └────────┬─────────┘
-                          │
-                          ▼
-                 ┌──────────────────┐
-                 │ Dashboard /      │
-                 │ Search / Filter  │
-                 └──────────────────┘
-```
-
----
-
-# Data Model
-
-## Job
-
-A job contains information such as:
-
-* `job_id`
-* `title`
-* `company`
-* `location`
-* `description`
-* `skills`
-* `experience_required`
-* `posted_date`
-* `source`
-* `job_url`
-* `status`
-
-## Application
-
-An application contains:
-
-* `job_id`
-* `title`
-* `company`
-* `status`
-* `applied_date`
-
----
-
-# Running the Project
-
-Clone the repository:
+The non-interactive runner is:
 
 ```bash
-git clone <repository-url>
-cd job-application-agent
+python3 run_discovery.py
 ```
 
-Create a virtual environment:
+It is intended for automated execution.
 
-```bash
-python3 -m venv .venv
-```
+## Run Tests
 
-Activate the virtual environment:
-
-```bash
-source .venv/bin/activate
-```
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Run the application:
-
-```bash
-python3 main.py
-```
-
----
-
-# Running Tests
-
-The project includes automated tests for:
-
-* Job searching
-* Job filtering
-* Duplicate job detection
-* Non-duplicate job detection
-* Protecting `SHORTLISTED` jobs from automatic ranking updates
-* Protecting `APPLIED` jobs from automatic ranking updates
-* Moving `NEW` jobs to `SHORTLISTED` for `STRONG APPLY`
-* Moving `NEW` jobs to `SHORTLISTED` for `APPLY`
-* Moving `NEW` jobs to `ANALYZED` for `SKIP`
-
-Run all tests using:
+Run the complete test suite:
 
 ```bash
 python3 -m pytest tests -v
 ```
 
-Current test suite:
+The test suite covers:
+
+- job filtering
+- repository duplicate detection
+- status protection
+- ranking-based status changes
+- Telegram notification behavior
+- duplicate notification prevention
+- notification thresholds
+- meaningful change handling
+- daily digest behavior
+
+## Continuous Integration
+
+The repository contains a Python test workflow:
 
 ```text
-10 passed
+.github/workflows/test.yml
 ```
 
----
+It:
 
-# Example Workflow
+1. checks out the repository
+2. installs Python
+3. installs dependencies
+4. runs pytest
+5. builds the Docker image
+6. validates Docker Compose configuration
+
+The workflow runs on:
+
+- pushes to `main`
+- pull requests targeting `main`
+
+## Automated Job Discovery
+
+The repository also contains:
 
 ```text
-Start Application
-        ↓
-Display Main Menu
-        ↓
-Choose Action
-        │
-        ├── Add and Analyze Job
-        │       ↓
-        │   Extract Metadata
-        │       ↓
-        │   Parse Job Description
-        │       ↓
-        │   Duplicate Detection
-        │       ↓
-        │   Save Job
-        │
-        ├── Rank All Jobs
-        │       ↓
-        │   Compare Against Candidate Profile
-        │       ↓
-        │   Generate Score and Recommendation
-        │       ↓
-        │   Update Job Lifecycle Status
-        │
-        ├── Manage Applications
-        │
-        ├── Update Application Status
-        │
-        ├── View Application Dashboard
-        │
-        └── Search and Filter Jobs
-                ↓
-              Return to Menu
+.github/workflows/job-discovery.yml
 ```
 
----
+This workflow:
 
-# Design Decisions
+1. checks out the repository
+2. configures Python
+3. installs dependencies
+4. loads API credentials from GitHub repository secrets
+5. runs `run_discovery.py`
+6. updates `data/jobs.json`
+7. commits database changes when required
 
-## Modular Architecture
+The workflow can be:
 
-The application separates responsibilities into different modules.
+- triggered manually
+- triggered on a scheduled basis
 
-Examples:
+## Required GitHub Secrets
 
-* `job_parser.py` handles job description parsing
-* `job_ranker.py` handles job scoring and recommendations
-* `job_repository.py` handles job persistence and duplicate detection
-* `job_filters.py` handles job searching and filtering
-* `application_tracker.py` handles application persistence
-* `application_actions.py` handles the application workflow
-* `main.py` acts as the CLI orchestration layer
-
-This separation makes the application easier to test, understand, and extend.
-
----
-
-## JSON-Based Persistence
-
-The current version uses JSON files for persistence:
-
-* `data/jobs.json`
-* `data/applications.json`
-
-This keeps the project lightweight while allowing data to persist between application runs.
-
-Possible future replacements include:
-
-* SQLite
-* PostgreSQL
-* DynamoDB
-
-The current architecture keeps higher-level business logic reasonably separate from storage operations.
-
----
-
-## Repository Pattern
-
-`JobRepository` centralizes job persistence operations including:
-
-* Generating the next job ID
-* Saving jobs
-* Updating job status
-* Detecting duplicates
-
-This avoids spreading persistence logic across multiple modules.
-
----
-
-## Separation of Recommendation and Status
-
-A ranking recommendation and a job lifecycle status represent different concepts.
-
-Recommendations answer:
+Create these repository secrets:
 
 ```text
-Should this job be prioritized?
+ADZUNA_APP_ID
+ADZUNA_APP_KEY
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID
 ```
 
-Lifecycle statuses answer:
+GitHub path:
 
 ```text
-Where is this job in the application process?
+Repository
+    -> Settings
+    -> Secrets and variables
+    -> Actions
+    -> New repository secret
 ```
 
-For example:
+## Local Development vs GitHub Actions
+
+Local WSL is used for:
+
+- coding
+- unit tests
+- syntax checks
+- Git operations
+- local application testing
+
+GitHub Actions is used for:
+
+- scheduled discovery
+- external API access
+- secret injection
+- Telegram delivery
+- updating the persistent job database
+
+This separation is useful when corporate network restrictions prevent direct outbound connections from the development machine.
+
+## Docker
+
+The repository includes:
 
 ```text
-Recommendation: STRONG APPLY
-Status: SHORTLISTED
+Dockerfile
+docker-compose.yml
+.dockerignore
 ```
 
-The project intentionally keeps these concepts separate to avoid ranking logic overwriting completed application states.
+The Docker image is based on:
 
----
+```text
+python:3.14-slim
+```
 
-# Future Improvements
+Docker is validated in GitHub Actions.
 
-Potential improvements include:
+Local Docker execution is optional for development.
 
-* Integration with real job sources
-* Job board ingestion
-* Database persistence
-* Web interface
-* REST API
-* Resume tailoring automation
-* AI-assisted job description analysis
-* Email notifications
-* Application deadlines
-* Follow-up reminders
-* Advanced duplicate detection
-* Historical ranking analytics
-* Docker containerization
-* CI/CD pipeline
+## Error Handling
 
----
+The Adzuna source includes retry behavior for temporary API failures.
 
-# Key Learning Areas
+For example, temporary HTTP 503 errors are retried before the affected query is skipped.
 
-This project demonstrates practical experience with:
+A failure for one search should not terminate the entire discovery process.
 
-* Python
-* Object-Oriented Programming
-* Dataclasses
-* Modular Application Design
-* JSON Persistence
-* Repository Pattern
-* Data Parsing
-* Business Rule Implementation
-* Weighted Scoring Logic
-* Job Lifecycle Management
-* Application Tracking
-* Search and Filtering
-* Unit Testing with Pytest
-* Virtual Environments
-* Git
+## Troubleshooting
 
----
+### Adzuna 503
 
-# Interview Explanation
+Example:
 
-A concise way to explain this project:
+```text
+503 Service Temporarily Unavailable
+```
 
-> I built a Python-based Job Application Agent to automate the job evaluation and application tracking workflow. The system accepts job postings, extracts metadata and requirements such as skills, experience, and certifications, and compares them against a candidate profile using weighted scoring logic. Jobs receive recommendations such as STRONG APPLY, APPLY, or SKIP, while lifecycle statuses are managed separately to prevent ranking runs from overwriting completed application states. I implemented duplicate detection, JSON-based persistence, application tracking, a dashboard, job search and filtering, and automated tests for core business rules. The project follows a modular architecture with separate components for parsing, ranking, persistence, workflow management, and presentation.
+This is treated as a temporary upstream error.
+
+The discovery service retries the request and then skips the affected query if necessary.
+
+### Local Network Timeout
+
+Test connectivity:
+
+```bash
+curl -I --max-time 10 https://api.adzuna.com
+```
+
+Test Telegram:
+
+```bash
+curl -I --max-time 10 https://api.telegram.org
+```
+
+If these requests fail from WSL because of corporate network restrictions, use the GitHub Actions workflow for real external API execution.
+
+### Telegram 404
+
+Verify:
+
+```text
+TELEGRAM_BOT_TOKEN
+```
+
+A malformed Telegram bot token can result in a `404 Not Found` response.
+
+### Telegram Updates Empty
+
+If Telegram `getUpdates` returns:
+
+```json
+{"ok": true, "result": []}
+```
+
+send a message to the bot first and then call `getUpdates` again.
+
+## Data Files
+
+Job database:
+
+```text
+data/jobs.json
+```
+
+Application database:
+
+```text
+data/applications.json
+```
+
+The project currently uses JSON persistence to keep the application simple and portable.
+
+## Engineering Decisions
+
+### Why JSON?
+
+JSON provides:
+
+- simple persistence
+- human-readable data
+- no database server dependency
+- easy local development
+
+A relational database can be introduced later without redesigning the higher-level discovery and ranking modules.
+
+### Why Separate Job and Application State?
+
+A discovered job and an application are different concepts.
+
+A job can be:
+
+```text
+active = true
+```
+
+while its associated application is:
+
+```text
+INTERVIEW
+```
+
+Keeping these states separate prevents lifecycle conflicts.
+
+### Why Track first_seen and last_seen?
+
+This allows the agent to distinguish:
+
+- newly discovered jobs
+- recurring jobs
+- stale jobs
+- reactivated jobs
+
+### Why Use a Notification Hash?
+
+External job sources can change redirect URLs or other non-critical fields.
+
+A meaningful-content fingerprint reduces duplicate Telegram notifications.
+
+### Why GitHub Actions?
+
+The scheduled agent requires:
+
+- external network access
+- API credentials
+- Telegram credentials
+
+GitHub Actions provides a controlled execution environment with repository secrets and scheduled workflows.
+
+## Security Considerations
+
+Never commit:
+
+```text
+.env
+API keys
+Telegram bot tokens
+private credentials
+```
+
+Credentials should be provided through:
+
+- local `.env` for development
+- GitHub repository secrets for automated execution
+
+## Future Improvements
+
+Potential future enhancements include:
+
+- more job sources
+- LinkedIn integration where permitted
+- additional job boards
+- relational database persistence
+- semantic resume-to-job matching
+- AI-assisted job description analysis
+- automated follow-up reminders
+- email notifications
+- web dashboard
+- richer application analytics
+- job expiration detection
+- improved rate-limit management
+- containerized deployment
+
+## Project Status
+
+Current implementation includes:
+
+- live Adzuna discovery
+- configurable role/location searches
+- relevance filtering
+- duplicate detection
+- freshness tracking
+- stale-job lifecycle
+- job reactivation
+- job ranking
+- configurable Telegram notifications
+- Telegram deduplication
+- daily Telegram digest
+- application tracking
+- application dashboard
+- search/filter functionality
+- automated tests
+- GitHub Actions CI
+- scheduled job discovery
+- Docker configuration
+
+## License
+
+This project is intended as a personal automation and learning project.
