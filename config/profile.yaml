@@ -1,174 +1,151 @@
 candidate:
-  name: "Shaik Gulam Hussain"
-
+  name: Shaik Gulam Hussain
 current_position:
-  title: "Content Operations Specialist"
-  company: "Amazon"
+  title: Content Operations Specialist
+  company: Amazon
   experience_years: 4
-
 professional_focus:
   primary:
-    - Cloud Operations
-    - DevOps
-    - Cloud Engineering
-
+  - Cloud Operations
+  - DevOps
+  - Cloud Engineering
   secondary:
-    - Application Support
-    - Platform Operations
-    - Production Support
-    - Site Reliability Engineering
-
-certifications:
-  - "AWS Certified Solutions Architect - Associate"
-
-skills:
-
-  cloud:
-    - AWS
-    - EC2
-    - EKS
-    - ECR
-    - IAM
-    - VPC
-    - S3
-    - RDS
-    - ALB
-    - Route 53
-    - CloudWatch
-    - SNS
-    - Secrets Manager
-
-  containers:
-    - Docker
-    - Kubernetes
-    - Helm
-
-  infrastructure_as_code:
-    - Terraform
-    - AWS CloudFormation
-
-  cicd:
-    - Jenkins
-    - Git
-
-  monitoring:
-    - Amazon CloudWatch
-    - Prometheus
-    - Grafana
-
-  operating_systems:
-    - Linux
-    - Ubuntu
-    - Amazon Linux 2023
-
-  programming:
-    - Python
-    - Bash
-
-  database:
-    - PostgreSQL
-
-experience_keywords:
-  - Production Operations
+  - Application Support
+  - Platform Operations
   - Production Support
-  - Incident Management
-  - Incident Troubleshooting
-  - Root Cause Analysis
-  - Deployment Support
-  - Release Management
-  - Change Management
-  - CI/CD
-  - Infrastructure as Code
-  - Cloud Automation
-  - Monitoring
-  - Observability
-  - Kubernetes Operations
-
+  - Site Reliability Engineering
+certifications:
+- AWS Certified Solutions Architect - Associate
+skills:
+  cloud:
+  - AWS
+  - EC2
+  - EKS
+  - ECR
+  - IAM
+  - VPC
+  - S3
+  - RDS
+  - ALB
+  - Route 53
+  - CloudWatch
+  - SNS
+  - Secrets Manager
+  - SQS
+  containers:
+  - Docker
+  - Kubernetes
+  - Helm
+  infrastructure_as_code:
+  - Terraform
+  - AWS CloudFormation
+  cicd:
+  - Jenkins
+  - Git
+  monitoring:
+  - Amazon CloudWatch
+  - Prometheus
+  - Grafana
+  operating_systems:
+  - Linux
+  - Ubuntu
+  - Amazon Linux 2023
+  programming:
+  - Python
+  - Bash
+  database:
+  - PostgreSQL
+  testing:
+  - Pytest
+  configuration:
+  - YAML
+experience_keywords:
+- Production Operations
+- Production Support
+- Incident Management
+- Incident Troubleshooting
+- Root Cause Analysis
+- Deployment Support
+- Release Management
+- Change Management
+- CI/CD
+- Infrastructure as Code
+- Cloud Automation
+- Monitoring
+- Observability
+- Kubernetes Operations
 target_roles:
-
   high_priority:
-    - Junior DevOps Engineer
-    - Associate DevOps Engineer
-    - DevOps Engineer
-    - Cloud Engineer
-    - Cloud Operations Engineer
-    - Cloud Support Engineer
-    - Application Support Engineer
-    - Platform Engineer
-    - Linux Engineer
-
+  - Junior DevOps Engineer
+  - Associate DevOps Engineer
+  - DevOps Engineer
+  - Cloud Engineer
+  - Cloud Operations Engineer
+  - Cloud Support Engineer
+  - Application Support Engineer
+  - Platform Engineer
+  - Linux Engineer
   medium_priority:
-    - Site Reliability Engineer
-    - Systems Engineer
-    - Infrastructure Engineer
-    - Cloud Infrastructure Engineer
-
+  - Site Reliability Engineer
+  - Systems Engineer
+  - Infrastructure Engineer
+  - Cloud Infrastructure Engineer
 job_preferences:
-
   experience_range:
     minimum_years: 0
     preferred_maximum_years: 4
-
   exclude_keywords:
-    - Senior
-    - Sr
-    - Lead
-    - Principal
-    - Architect
-    - Manager
-    - Director
-    - AVP
-    - Vice President
-    - VP
-    - Head
-    - Staff
-  
+  - Senior
+  - Sr
+  - Lead
+  - Principal
+  - Architect
+  - Manager
+  - Director
+  - AVP
+  - Vice President
+  - VP
+  - Head
+  - Staff
   required_title_keywords:
-    - DevOps
-    - Cloud
-    - Site Reliability
-    - SRE
-    - Platform
-    - Linux
-    - System Administrator
-    - Application Support
-
+  - DevOps
+  - Cloud
+  - Site Reliability
+  - SRE
+  - Platform
+  - Linux
+  - System Administrator
+  - Application Support
   exclude_title_keywords:
-    - Data Platform
-    - AI Platform
-    - Java Platform
-    - RPA
-    - UiPath
-    - Banking
-    - Salesforce
-    - QA
-    - Testing
-    - Golang  
-
+  - Data Platform
+  - AI Platform
+  - Java Platform
+  - RPA
+  - UiPath
+  - Banking
+  - Salesforce
+  - QA
+  - Testing
+  - Golang
 resume_versions:
-  conservative: "V3"
-  aggressive: "V2"
-
+  conservative: V3
+  aggressive: V2
 job_discovery:
-
   locations:
-    - Hyderabad
-    - Bengaluru
-    - Remote
-
+  - Hyderabad
+  - Bengaluru
+  - Remote
   results_per_search: 10
-
   search_keywords:
-    - AWS
-    - Linux
-    - Docker
-    - Kubernetes
-    - Terraform
-    - Jenkins
-    - CI/CD
-    - Python
-    - Monitoring
-
+  - AWS
+  - Linux
+  - Docker
+  - Kubernetes
+  - Terraform
+  - Jenkins
+  - CI/CD
+  - Python
+  - Monitoring
   notifications:
     telegram:
       enabled: true
@@ -177,3 +154,38 @@ job_discovery:
       - STRONG APPLY
       - APPLY
       - CONSIDER
+skill_evidence:
+  professional:
+  - AWS
+  - EC2
+  - EKS
+  - IAM
+  - S3
+  - RDS
+  - ALB
+  - CloudWatch
+  - SQS
+  - SNS
+  personal_project:
+  - Python
+  - Git
+  - Pytest
+  - YAML
+  collaborative_exposure:
+  - ECR
+  - VPC
+  - Route 53
+  - Secrets Manager
+  - Helm
+  - Terraform
+  - AWS CloudFormation
+  - Jenkins
+  - Prometheus
+  - Grafana
+  - Linux
+  - Ubuntu
+  - Amazon Linux 2023
+  - Bash
+  - PostgreSQL
+  - Docker
+  - Kubernetes

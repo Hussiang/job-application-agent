@@ -82,3 +82,32 @@ def test_daily_digest_sends_summary():
     assert "DevOps Engineer" in message
     assert "Cloud Engineer" in message
     assert "Senior Engineer" not in message
+
+
+def test_disabled_daily_digest_does_not_send():
+    notifier = FakeNotifier()
+
+    service = DailyDigestService(
+        notifier,
+        {"enabled": False},
+    )
+
+    sent = service.send_digest([], [])
+
+    assert sent is False
+    assert notifier.messages == []
+
+
+
+def test_incomplete_discovery_suppresses_daily_digest():
+    notifier = FakeNotifier()
+    service = DailyDigestService(notifier, {"enabled": True})
+
+    sent = service.send_digest(
+        [],
+        [],
+        discovery_complete=False,
+    )
+
+    assert sent is False
+    assert notifier.messages == []

@@ -1,64 +1,98 @@
 import re
 from src.jobs.job import Job
 def extract_skills(description, known_skills):
-    description = description.lower()
+    if not isinstance(description, str):
+        return []
 
+    description = description.lower()
     matched_skills = []
 
-    for skill in known_skills:
-        if skill.lower() in description:
+    for skill in known_skills or []:
+        if not isinstance(skill, str) or not skill.strip():
+            continue
+
+        skill = skill.strip()
+        pattern = (
+            r"(?<![a-zA-Z0-9_])"
+            + re.escape(skill.lower())
+            + r"(?![a-zA-Z0-9_])"
+        )
+
+        if re.search(pattern, description):
             matched_skills.append(skill)
 
     return matched_skills
 
-
 def extract_experience(description):
+    if not isinstance(description, str):
+        return None
+
     description = description.lower()
+
+    range_match = re.search(
+        r"(\d+)\s*(?:-|–|—|to)\s*(\d+)\s+years?",
+        description,
+    )
+    if range_match:
+        return int(range_match.group(1))
 
     patterns = [
         r"(\d+)\+?\s+years?\s+of\s+experience",
         r"minimum\s+of\s+(\d+)\s+years?",
         r"at\s+least\s+(\d+)\s+years?",
-        r"(\d+)\+?\s+years?\s+experience"
+        r"(\d+)\+?\s+years?\s+experience",
     ]
 
     for pattern in patterns:
         match = re.search(pattern, description)
-
         if match:
             return int(match.group(1))
 
-    return 0
-
+    return None
 
 def extract_certification_requirement(description):
+    if not isinstance(description, str):
+        return None
+
     description = description.lower()
 
+    negative_patterns = [
+        r"\bno\s+(?:aws\s+)?certifications?\b",
+        r"\bcertifications?\b[^.!?\n]{0,50}"
+        r"\b(?:not required|not mandatory|isn't required|"
+        r"aren't required|is not required|are not required)\b",
+        r"\b(?:not required|not mandatory)\b"
+        r"[^.!?\n]{0,50}\bcertifications?\b",
+    ]
+
+    if any(re.search(p, description) for p in negative_patterns):
+        preferred = re.search(
+            r"\bcertifications?\b[^.!?\n]{0,50}"
+            r"\b(?:preferred|nice to have|plus)\b",
+            description,
+        )
+        return "preferred" if preferred else None
+
     required_patterns = [
-        r"certification.*required",
-        r"certification.*mandatory",
-        r"aws.*certification.*required",
-        r"aws certified.*required"
+        r"\bcertifications?\b[^.!?\n]{0,80}\brequired\b",
+        r"\bcertifications?\b[^.!?\n]{0,80}\bmandatory\b",
+        r"\baws certified\b[^.!?\n]{0,80}\brequired\b",
     ]
 
     preferred_patterns = [
-        r"certification.*preferred",
-        r"certification.*plus",
-        r"certification.*nice to have",
-        r"aws.*certification.*preferred",
-        r"aws certified.*preferred"
+        r"\bcertifications?\b[^.!?\n]{0,80}\bpreferred\b",
+        r"\bcertifications?\b[^.!?\n]{0,80}\bplus\b",
+        r"\bcertifications?\b[^.!?\n]{0,80}\bnice to have\b",
+        r"\baws certified\b[^.!?\n]{0,80}\bpreferred\b",
     ]
 
-    for pattern in required_patterns:
-        if re.search(pattern, description):
-            return "required"
+    if any(re.search(p, description) for p in required_patterns):
+        return "required"
 
-    for pattern in preferred_patterns:
-        if re.search(pattern, description):
-            return "preferred"
+    if any(re.search(p, description) for p in preferred_patterns):
+        return "preferred"
 
-    return "none"
-
+    return None
 
 def extract_responsibilities(description):
     description = description.lower()

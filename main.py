@@ -153,6 +153,7 @@ def discover_live_jobs(
         .get("telegram", {})
     )
 
+
     queries = build_search_queries(
         profile
     )
@@ -350,6 +351,7 @@ def main():
                 known_skills,
                 job_repository,
             )
+            ranked_jobs = None
 
         elif choice == "2":
             ranked_jobs = rank_all_jobs(
@@ -390,6 +392,7 @@ def main():
                 scoring,
                 job_repository,
             )
+            ranked_jobs = None
 
         elif choice == "8":
             print(

@@ -195,4 +195,62 @@ def test_consider_at_threshold_is_notified():
     assert sent == 1
     assert job.telegram_notified is True
     assert job.notification_hash is not None
-    assert len(notifier.messages) == 1    
+    assert len(notifier.messages) == 1
+
+def test_failed_notification_remains_pending_and_succeeds_on_retry():
+    class IntermittentNotifier:
+        def __init__(self):
+            self.results = [False, True]
+            self.messages = []
+
+        def send_message(self, message):
+            self.messages.append(message)
+            return self.results.pop(0)
+
+    notifier = IntermittentNotifier()
+    service = JobNotificationService(
+        notifier=notifier,
+        notification_config={"enabled": True, "minimum_score": 45},
+    )
+    job = create_job()
+    ranked_job = {
+        "job": job,
+        "score": 60,
+        "recommendation": "APPLY",
+    }
+
+    first_attempt = service.notify_new_jobs([ranked_job])
+    assert first_attempt == 0
+    assert job.telegram_notified is False
+    assert job.notification_hash is None
+
+    second_attempt = service.notify_new_jobs([ranked_job])
+    assert second_attempt == 1
+    assert job.telegram_notified is True
+    assert job.notification_hash is not None
+    assert len(notifier.messages) == 2
+
+    third_attempt = service.notify_new_jobs([ranked_job])
+    assert third_attempt == 0
+    assert len(notifier.messages) == 2
+
+
+def test_notifier_exception_does_not_mark_job_as_notified():
+    class RaisingNotifier:
+        def send_message(self, message):
+            raise TimeoutError("simulated transport failure")
+
+    service = JobNotificationService(
+        notifier=RaisingNotifier(),
+        notification_config={"enabled": True, "minimum_score": 45},
+    )
+    job = create_job()
+    ranked_job = {
+        "job": job,
+        "score": 60,
+        "recommendation": "APPLY",
+    }
+
+    assert service.notify_new_jobs([ranked_job]) == 0
+    assert job.telegram_notified is False
+    assert job.notification_hash is None

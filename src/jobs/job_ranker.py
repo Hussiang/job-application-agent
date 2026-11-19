@@ -1,94 +1,122 @@
+import re
+
 from src.core.skill_normalizer import normalize_skill
 from src.jobs.job import Job
 
-def calculate_role_score(job_title, profile, scoring):
-    job_title = job_title.lower()
+def _contains_term(text, term):
+    """Match a complete term rather than an accidental substring."""
+    return bool(re.search(rf"\b{re.escape(term.lower())}\b", text.lower()))
 
-    high_priority_roles = [
-        role.lower()
-        for role in profile["target_roles"]["high_priority"]
-    ]
 
-    medium_priority_roles = [
-        role.lower()
-        for role in profile["target_roles"]["medium_priority"]
-    ]
-
-    senior_keywords = [
+def _seniority_keywords(scoring):
+    return (
         "senior",
         "lead",
         "principal",
         "staff",
         "architect",
-        "manager"
-    ]
+        "manager",
+    )
 
-    if any(
-        keyword in job_title
-        for keyword in senior_keywords
-    ):
+
+def calculate_role_score(job_title, profile, scoring):
+    title = (job_title or "").strip().lower()
+
+    if any(_contains_term(title, keyword) for keyword in _seniority_keywords(scoring)):
         return scoring["role_match"]["related_role"]
 
-    for role in high_priority_roles:
-        if role in job_title:
-            return scoring["role_match"]["high_priority"]
+    high_priority_roles = profile["target_roles"]["high_priority"]
+    medium_priority_roles = profile["target_roles"]["medium_priority"]
 
-    for role in medium_priority_roles:
-        if role in job_title:
-            return scoring["role_match"]["medium_priority"]
+    if any(_contains_term(title, role) for role in high_priority_roles):
+        return scoring["role_match"]["high_priority"]
 
-    return scoring["role_match"]["related_role"]
+    if any(_contains_term(title, role) for role in medium_priority_roles):
+        return scoring["role_match"]["medium_priority"]
+
+    related_title_keywords = scoring.get(
+        "related_title_keywords",
+        (
+            "kubernetes", "docker", "container", "infrastructure",
+            "systems", "system", "operations", " sre ",
+        ),
+    )
+    if any(_contains_term(title, keyword.strip()) for keyword in related_title_keywords):
+        return scoring["role_match"].get("related_role", 10)
+
+    return scoring["role_match"].get("unrelated_role", 0)
+
+
+def _candidate_skill_evidence(profile):
+    """Return normalized skills mapped to their strongest declared evidence tier."""
+    evidence = profile.get("skill_evidence")
+    if not evidence:
+        # Backward compatibility for profiles created before evidence tiers.
+        return {
+            normalize_skill(skill): "professional"
+            for skills in profile.get("skills", {}).values()
+            for skill in skills
+            if normalize_skill(skill)
+        }
+
+    evidence_rank = {
+        "collaborative_exposure": 1,
+        "personal_project": 2,
+        "professional": 3,
+    }
+    result = {}
+    for tier, skills in evidence.items():
+        if tier not in evidence_rank:
+            continue
+        for skill in skills or []:
+            normalized = normalize_skill(skill)
+            if normalized and evidence_rank[tier] > evidence_rank.get(result.get(normalized), 0):
+                result[normalized] = tier
+    return result
 
 
 def calculate_skill_score(job_skills, profile, scoring):
-    candidate_skills = []
-
-    for category, skills in profile["skills"].items():
-        candidate_skills.extend(skills)
-
-    candidate_skills = [
+    evidence_by_skill = _candidate_skill_evidence(profile)
+    core_skills = {
         normalize_skill(skill)
-        for skill in candidate_skills
-    ]
-
-    core_skills = [
-        normalize_skill(skill)
-        for skill in scoring["core_skills"]
-    ]
+        for skill in scoring.get("core_skills", [])
+        if normalize_skill(skill)
+    }
 
     core_weight = scoring["weights"]["core_skill_weight"]
     supporting_weight = scoring["weights"]["supporting_skill_weight"]
-
-    matched_skills = []
-    matched_weight = 0
-    total_weight = 0
-
-    for skill in job_skills:
-        normalized_skill = normalize_skill(skill)
-
-        if normalized_skill in core_skills:
-            total_weight += core_weight
-        else:
-            total_weight += supporting_weight
-
-        if normalized_skill in candidate_skills:
-            matched_skills.append(skill)
-
-            if normalized_skill in core_skills:
-                matched_weight += core_weight
-            else:
-                matched_weight += supporting_weight
-
-    if not job_skills or total_weight == 0:
-        return 0, matched_skills
-
-    match_percentage = matched_weight / total_weight
-
-    score = (
-        match_percentage
-        * scoring["weights"]["skill_match"]
+    evidence_multipliers = scoring.get(
+        "evidence_multipliers",
+        {"professional": 1.0, "personal_project": 1.0, "collaborative_exposure": 1.0},
     )
 
+    # Duplicate aliases in a job description must not inflate the score.
+    unique_job_skills = []
+    seen = set()
+    for skill in job_skills or []:
+        normalized = normalize_skill(skill)
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            unique_job_skills.append((skill, normalized))
+
+    matched_skills = []
+    matched_weight = 0.0
+    total_weight = 0.0
+
+    for original_skill, normalized_skill in unique_job_skills:
+        base_weight = core_weight if normalized_skill in core_skills else supporting_weight
+        total_weight += base_weight
+
+        evidence_tier = evidence_by_skill.get(normalized_skill)
+        if evidence_tier:
+            matched_skills.append(original_skill)
+            multiplier = evidence_multipliers.get(evidence_tier, 0.0)
+            matched_weight += base_weight * multiplier
+
+    if not unique_job_skills or total_weight == 0:
+        return 0, matched_skills
+
+    score = (matched_weight / total_weight) * scoring["weights"]["skill_match"]
     return round(score, 2), matched_skills
 
 
@@ -101,6 +129,10 @@ def calculate_experience_score(
         profile["job_preferences"]["experience_range"]
         ["preferred_maximum_years"]
     )
+
+    # Missing experience information should not earn or lose points.
+    if job_experience is None:
+        return 0
 
     if job_experience <= preferred_maximum:
         return scoring["experience_match"]["within_preferred_range"]
@@ -155,34 +187,26 @@ def calculate_penalty(
     profile,
     scoring
 ):
+    title = (job_title or "").strip().lower()
     penalty = 0
+    penalty_keys = {
+        "senior": "senior_role",
+        "lead": "lead_role",
+        "principal": "principal_role",
+        "staff": "staff_role",
+        "architect": "architect_role",
+        "manager": "manager_role",
+    }
 
-    title = job_title.lower()
-
-    if "senior" in title:
-        penalty += scoring["penalties"]["senior_role"]
-
-    if "lead" in title:
-        penalty += scoring["penalties"]["lead_role"]
-
-    if "principal" in title:
-        penalty += scoring["penalties"]["principal_role"]
-
-    if "architect" in title:
-        penalty += scoring["penalties"]["architect_role"]
-
-    if "manager" in title:
-        penalty += scoring["penalties"]["manager_role"]
+    for keyword, config_key in penalty_keys.items():
+        if _contains_term(title, keyword):
+            penalty += scoring["penalties"].get(config_key, 0)
 
     preferred_maximum = (
-        profile["job_preferences"]["experience_range"]
-        ["preferred_maximum_years"]
+        profile["job_preferences"]["experience_range"]["preferred_maximum_years"]
     )
-
-    if job_experience > preferred_maximum + 2:
-        penalty += scoring["penalties"][
-            "experience_far_above_profile"
-        ]
+    if job_experience is not None and job_experience > preferred_maximum + 2:
+        penalty += scoring["penalties"]["experience_far_above_profile"]
 
     return penalty
 
@@ -230,22 +254,23 @@ def calculate_certification_score(
 
 
 def calculate_missing_skills(job_skills, profile):
-    candidate_skills = []
-
-    for category, skills in profile["skills"].items():
-        candidate_skills.extend(skills)
-
-    normalized_candidate_skills = {
+    candidate_skills = {
         normalize_skill(skill)
-        for skill in candidate_skills
+        for skills in profile.get("skills", {}).values()
+        for skill in skills
+        if normalize_skill(skill)
     }
+    # Evidence tiers are authoritative when present, including project-only skills.
+    candidate_skills.update(_candidate_skill_evidence(profile).keys())
 
     missing_skills = []
-
-    for skill in job_skills:
-        normalized_skill = normalize_skill(skill)
-
-        if normalized_skill not in normalized_candidate_skills:
+    seen = set()
+    for skill in job_skills or []:
+        normalized = normalize_skill(skill)
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        if normalized not in candidate_skills:
             missing_skills.append(skill)
 
     return missing_skills
@@ -253,68 +278,67 @@ def calculate_missing_skills(job_skills, profile):
 
 def calculate_skill_summary(
     job_skills,
-    matched_skills
+    matched_skills,
+    skill_score=None,
+    skill_score_maximum=None,
 ):
-    total_required = len(job_skills)
-    total_matched = len(matched_skills)
+    unique_required = {
+        normalize_skill(skill)
+        for skill in (job_skills or [])
+        if normalize_skill(skill)
+    }
+    unique_matched = {
+        normalize_skill(skill)
+        for skill in (matched_skills or [])
+        if normalize_skill(skill)
+    }
+    total_required = len(unique_required)
+    total_matched = len(unique_matched & unique_required)
 
-    if total_required == 0:
-        return {
-            "matched": 0,
-            "required": 0,
-            "percentage": 0
-        }
-
-    percentage = (
-        total_matched / total_required
-    ) * 100
+    # Coverage answers "does the profile list this skill?".
+    # Evidence strength separately discounts project/collaborative exposure.
+    coverage_percentage = (
+        (total_matched / total_required) * 100
+        if total_required else 0
+    )
+    evidence_percentage = (
+        (skill_score / skill_score_maximum) * 100
+        if skill_score is not None and skill_score_maximum
+        else coverage_percentage
+    )
 
     return {
         "matched": total_matched,
         "required": total_required,
-        "percentage": round(percentage, 2)
+        "percentage": round(coverage_percentage, 2),
+        "coverage_percentage": round(coverage_percentage, 2),
+        "evidence_strength_percentage": round(evidence_percentage, 2),
     }
 
 
 def check_job_eligibility(job: Job, profile):
     reasons = []
     major_mismatch = False
+    title = (job.title or "").strip().lower()
 
-    title = job.title.lower()
-
-    major_role_keywords = [
-        "senior",
-        "lead",
-        "principal",
-        "architect",
-        "manager"
-    ]
-
-    for keyword in major_role_keywords:
-        if keyword in title:
-            reasons.append(
-                f"{keyword.title()}-level role"
-            )
+    for keyword in _seniority_keywords({}):
+        if _contains_term(title, keyword):
+            reasons.append(f"{keyword.title()}-level role")
             major_mismatch = True
 
     preferred_maximum = (
-        profile["job_preferences"]["experience_range"]
-        ["preferred_maximum_years"]
+        profile["job_preferences"]["experience_range"]["preferred_maximum_years"]
     )
+    job_experience = job.experience_required
 
-    job_experience = job.experience_required or 0
-
-    if job_experience > preferred_maximum + 2:
-        reasons.append(
-            f"Requires {job_experience}+ years of experience"
-        )
-        major_mismatch = True
-
-    elif job_experience > preferred_maximum:
-        reasons.append(
-            f"Experience slightly above preferred range "
-            f"({job_experience} years)"
-        )
+    if job_experience is not None:
+        if job_experience > preferred_maximum + 2:
+            reasons.append(f"Requires {job_experience}+ years of experience")
+            major_mismatch = True
+        elif job_experience > preferred_maximum:
+            reasons.append(
+                f"Experience slightly above preferred range ({job_experience} years)"
+            )
 
     if major_mismatch:
         status = "NOT ELIGIBLE"
@@ -323,10 +347,7 @@ def check_job_eligibility(job: Job, profile):
     else:
         status = "ELIGIBLE"
 
-    return {
-        "status": status,
-        "reasons": reasons
-    }
+    return {"status": status, "reasons": reasons}
 
 
 def calculate_bonus_score(
@@ -418,19 +439,21 @@ def generate_fit_explanation(
         )
 
     # Skills
-    if skill_summary["percentage"] == 100:
+    if skill_summary["coverage_percentage"] == 100:
+        strengths.append("All required skills are present in the profile")
+    elif skill_summary["coverage_percentage"] >= 80:
         strengths.append(
-            "All required skills matched"
-        )
-    elif skill_summary["percentage"] >= 80:
-        strengths.append(
-            f"Strong skill match "
-            f"({skill_summary['percentage']}%)"
+            f"Strong skill coverage ({skill_summary['coverage_percentage']}%)"
         )
     else:
         concerns.append(
-            f"Skill match is only "
-            f"{skill_summary['percentage']}%"
+            f"Skill coverage is {skill_summary['coverage_percentage']}%"
+        )
+
+    if skill_summary["evidence_strength_percentage"] < skill_summary["coverage_percentage"]:
+        concerns.append(
+            "Some matched skills have project-based or collaborative evidence "
+            f"(evidence strength: {skill_summary['evidence_strength_percentage']}%)"
         )
 
     # Missing skills
@@ -627,7 +650,9 @@ def rank_job(
 
     skill_summary = calculate_skill_summary(
         job.skills,
-        matched_skills
+        matched_skills,
+        skill_score=skill_score,
+        skill_score_maximum=scoring["weights"]["skill_match"],
     )
 
     responsibility_score, matched_responsibilities = (
@@ -639,7 +664,7 @@ def rank_job(
     )
 
     experience_score = calculate_experience_score(
-        job.experience_required or 0,
+        job.experience_required,
         profile,
         scoring
     )
@@ -660,7 +685,7 @@ def rank_job(
 
     penalty = calculate_penalty(
         job.title,
-        job.experience_required or 0,
+        job.experience_required,
         profile,
         scoring
     )
@@ -678,7 +703,7 @@ def rank_job(
     recommendation = get_recommendation(
         total_score,
         eligibility,
-        skill_summary["percentage"]
+        skill_summary["evidence_strength_percentage"]
     )
 
     result = {

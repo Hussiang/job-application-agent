@@ -4,62 +4,58 @@ from src.notifications.telegram_notifier import TelegramNotifier
 
 
 class DailyDigestService:
-
     def __init__(
         self,
         notifier: TelegramNotifier,
+        notification_config=None,
     ):
         self.notifier = notifier
+        self.notification_config = notification_config or {}
+        self.enabled = self.notification_config.get("enabled", True)
 
     def send_digest(
         self,
         ranked_jobs,
         applications,
         minimum_score=45,
+        discovery_complete=True,
     ) -> bool:
+        if not discovery_complete:
+            print("Daily digest suppressed: discovery was incomplete.")
+            return False
+
+        if not self.enabled:
+            print("Daily digest is disabled.")
+            return False
 
         qualifying_jobs = [
             result
             for result in ranked_jobs
             if (
                 result["score"] >= minimum_score
-                and result["recommendation"]
-                != "SKIP"
+                and result["recommendation"] != "SKIP"
             )
         ]
 
         strong_apply = sum(
-            1
-            for result in qualifying_jobs
-            if result["recommendation"]
-            == "STRONG APPLY"
+            1 for result in qualifying_jobs
+            if result["recommendation"] == "STRONG APPLY"
         )
-
         apply_count = sum(
-            1
-            for result in qualifying_jobs
-            if result["recommendation"]
-            == "APPLY"
+            1 for result in qualifying_jobs
+            if result["recommendation"] == "APPLY"
         )
-
         consider_count = sum(
-            1
-            for result in qualifying_jobs
-            if result["recommendation"]
-            == "CONSIDER"
+            1 for result in qualifying_jobs
+            if result["recommendation"] == "CONSIDER"
         )
 
         top_jobs = qualifying_jobs[:5]
-
-        today = datetime.now().strftime(
-            "%Y-%m-%d"
-        )
-
+        today = datetime.now().strftime("%Y-%m-%d")
         message = (
             "📋 DAILY JOB DIGEST\n\n"
             f"Date: {today}\n\n"
-            f"New/relevant jobs: "
-            f"{len(qualifying_jobs)}\n"
+            f"New/relevant jobs: {len(qualifying_jobs)}\n"
             f"🔥 Strong Apply: {strong_apply}\n"
             f"✅ Apply: {apply_count}\n"
             f"🟡 Consider: {consider_count}\n\n"
@@ -68,14 +64,9 @@ class DailyDigestService:
 
         if not top_jobs:
             message += "\nNo qualifying jobs found today."
-
         else:
-            for index, result in enumerate(
-                top_jobs,
-                start=1,
-            ):
+            for index, result in enumerate(top_jobs, start=1):
                 job = result["job"]
-
                 message += (
                     f"\n{index}. {job.title}\n"
                     f"   {job.company}\n"
@@ -83,16 +74,12 @@ class DailyDigestService:
                     f"   Score: {result['score']}\n"
                     f"   {result['recommendation']}\n"
                 )
-
                 if job.job_url:
-                    message += (
-                        f"   Apply: {job.job_url}\n"
-                    )
+                    message += f"   Apply: {job.job_url}\n"
 
         message += (
             "\nAPPLICATION STATUS\n"
-            f"Tracked applications: "
-            f"{len(applications)}\n"
+            f"Tracked applications: {len(applications)}\n"
         )
 
         for status in [
@@ -107,11 +94,6 @@ class DailyDigestService:
                 for application in applications
                 if application.status == status
             )
+            message += f"{status}: {count}\n"
 
-            message += (
-                f"{status}: {count}\n"
-            )
-
-        return self.notifier.send_message(
-            message
-        )
+        return self.notifier.send_message(message)

@@ -4,156 +4,93 @@ from src.notifications.telegram_notifier import TelegramNotifier
 
 
 class JobNotificationService:
-
-    def __init__(
-        self,
-        notifier: TelegramNotifier,
-        notification_config: dict,
-    ):
+    def __init__(self, notifier: TelegramNotifier, notification_config: dict):
         self.notifier = notifier
-
-        self.enabled = notification_config.get(
-            "enabled",
-            True,
-        )
-
-        self.minimum_score = notification_config.get(
-            "minimum_score",
-            45,
-        )
-
+        self.enabled = notification_config.get("enabled", True)
+        self.minimum_score = notification_config.get("minimum_score", 45)
         self.allowed_recommendations = set(
             notification_config.get(
                 "recommendations",
-                [
-                    "STRONG APPLY",
-                    "APPLY",
-                    "CONSIDER",
-                ],
+                ["STRONG APPLY", "APPLY", "CONSIDER"],
             )
         )
 
-    def notify_new_jobs(
-        self,
-        ranked_jobs,
-    ) -> int:
+    def notify_new_jobs(self, ranked_jobs) -> int:
+        """Notify eligible jobs, including unsent jobs retried on later runs.
 
+        A job is marked notified only after the notifier confirms delivery.
+        Failed attempts leave its state unchanged so it remains retryable.
+        """
         if not self.enabled:
-            print(
-                "Telegram notifications are disabled."
-            )
+            print("Telegram notifications are disabled.")
             return 0
 
         notification_count = 0
-
         for result in ranked_jobs:
-
             job = result["job"]
             recommendation = result["recommendation"]
             score = result["score"]
 
             if score < self.minimum_score:
                 continue
-
             if recommendation not in self.allowed_recommendations:
                 continue
 
-            current_hash = self._build_notification_hash(
-                job,
-                result,
-            )
-
-            if (
-                job.telegram_notified
-                and job.notification_hash == current_hash
-            ):
+            current_hash = self._build_notification_hash(job, result)
+            if job.telegram_notified and job.notification_hash == current_hash:
                 continue
 
-            message = self._build_message(
-                job,
-                result,
-            )
-
-            success = self.notifier.send_message(
-                message
-            )
+            message = self._build_message(job, result)
+            try:
+                success = self.notifier.send_message(message)
+            except Exception as error:
+                # A notifier failure must not abort processing of other jobs.
+                print(
+                    f"Telegram notification raised an error for "
+                    f"{job.title} - {job.company}: {error}"
+                )
+                success = False
 
             if success:
                 job.telegram_notified = True
                 job.notification_hash = current_hash
-
                 notification_count += 1
-
                 print(
                     f"Telegram notification sent: "
+                    f"{job.title} - {job.company}"
+                )
+            else:
+                print(
+                    f"Telegram notification remains pending: "
                     f"{job.title} - {job.company}"
                 )
 
         return notification_count
 
-    def _build_notification_hash(
-        self,
-        job,
-        result,
-    ) -> str:
-
-        fingerprint_data = "|".join(
-    [
-        str(job.title).strip().lower(),
-        str(job.company).strip().lower(),
-        str(job.location).strip().lower(),
-        str(job.description or "").strip().lower(),
-        ",".join(
-            sorted(
-                skill.strip().lower()
-                for skill in job.skills
-                if skill
-            )
-        ),
-        ",".join(
-            sorted(
+    def _build_notification_hash(self, job, result) -> str:
+        fingerprint_data = "|".join([
+            str(job.title).strip().lower(),
+            str(job.company).strip().lower(),
+            str(job.location).strip().lower(),
+            str(job.description or "").strip().lower(),
+            ",".join(sorted(
+                skill.strip().lower() for skill in job.skills if skill
+            )),
+            ",".join(sorted(
                 responsibility.strip().lower()
-                for responsibility in job.responsibilities
-                if responsibility
-            )
-        ),
-        str(job.experience_required),
-        str(
-            job.certification_requirement
-            or ""
-        ).strip().lower(),
-        str(result["recommendation"]),
-        str(result["score"]),
-    ]
-)
+                for responsibility in job.responsibilities if responsibility
+            )),
+            str(job.experience_required),
+            str(job.certification_requirement or "").strip().lower(),
+            str(result["recommendation"]),
+            str(result["score"]),
+        ])
+        return hashlib.sha256(fingerprint_data.encode("utf-8")).hexdigest()
 
-        return hashlib.sha256(
-            fingerprint_data.encode("utf-8")
-        ).hexdigest()
-
-    def _build_message(
-        self,
-        job,
-        result,
-    ) -> str:
-
-        location = getattr(
-            job,
-            "location",
-            "Not specified",
-        )
-
-        source = getattr(
-            job,
-            "source",
-            "Unknown",
-        )
-
-        job_url = getattr(
-            job,
-            "job_url",
-            "",
-        )
+    def _build_message(self, job, result) -> str:
+        location = getattr(job, "location", "Not specified")
+        source = getattr(job, "source", "Unknown")
+        job_url = getattr(job, "job_url", "")
 
         message = (
             "🔥 JOB APPLICATION AGENT\n\n"
@@ -164,10 +101,6 @@ class JobNotificationService:
             f"Score: {result['score']}\n"
             f"Source: {source}\n"
         )
-
         if job_url:
-            message += (
-                f"\nApply:\n{job_url}\n"
-            )
-
+            message += f"\nApply:\n{job_url}\n"
         return message

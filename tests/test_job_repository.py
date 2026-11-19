@@ -112,7 +112,7 @@ def test_applied_job_status_is_protected():
         repository
     )
 
-    assert jobs[0].status == "APPLIED"    
+    assert jobs[0].status == "APPLIED"
 def test_new_job_strong_apply_moves_to_shortlisted():
     jobs = create_sample_jobs()
 
@@ -186,3 +186,41 @@ def test_new_job_skip_moves_to_analyzed():
     )
 
     assert jobs[0].status == "ANALYZED"
+
+def test_save_jobs_atomically_preserves_previous_file_on_write_failure(
+    tmp_path,
+    monkeypatch,
+):
+    import json
+    import pytest
+    import src.jobs.job_repository as repository_module
+
+    target = tmp_path / "jobs.json"
+    original_content = '[{"id": 99, "title": "preserve"}]'
+    target.write_text(original_content, encoding="utf-8")
+
+    def fail_dump(*args, **kwargs):
+        raise OSError("simulated disk write failure")
+
+    monkeypatch.setattr(repository_module.json, "dump", fail_dump)
+    repository = JobRepository(str(target))
+
+    with pytest.raises(OSError, match="simulated disk write failure"):
+        repository.save_jobs(create_sample_jobs())
+
+    assert target.read_text(encoding="utf-8") == original_content
+    assert list(tmp_path.glob(".jobs.json.*.tmp")) == []
+
+
+def test_atomic_save_writes_valid_json(tmp_path):
+    import json
+
+    target = tmp_path / "nested" / "jobs.json"
+    repository = JobRepository(str(target))
+    jobs = create_sample_jobs()
+
+    repository.save_jobs(jobs)
+
+    saved = json.loads(target.read_text(encoding="utf-8"))
+    assert [item["id"] for item in saved] == [1, 2]
+    assert list(target.parent.glob(".jobs.json.*.tmp")) == []
