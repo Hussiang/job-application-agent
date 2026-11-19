@@ -23,12 +23,14 @@ def extract_skills(description, known_skills):
 
     return matched_skills
 
+
 def extract_experience(description):
     if not isinstance(description, str):
         return None
 
     description = description.lower()
 
+    # Explicit experience ranges, e.g. 3-5 years.
     range_match = re.search(
         r"(\d+)\s*(?:-|–|—|to)\s*(\d+)\s+years?",
         description,
@@ -37,6 +39,13 @@ def extract_experience(description):
         return int(range_match.group(1))
 
     patterns = [
+        # Total experience: 8 years / Total experience: 8+ years
+        r"\btotal\s+experience\s*:\s*(\d+)\+?\s*years?\b",
+
+        # Experience: 6 years
+        r"\bexperience\s*:\s*(\d+)\+?\s*years?\b",
+
+        # Existing supported formats
         r"(\d+)\+?\s+years?\s+of\s+experience",
         r"minimum\s+of\s+(\d+)\s+years?",
         r"at\s+least\s+(\d+)\s+years?",
@@ -49,6 +58,7 @@ def extract_experience(description):
             return int(match.group(1))
 
     return None
+
 
 def extract_certification_requirement(description):
     if not isinstance(description, str):

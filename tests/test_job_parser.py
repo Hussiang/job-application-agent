@@ -27,6 +27,7 @@ def test_extract_skills_does_not_match_partial_words():
     assert result == []
 
 
+
 @pytest.mark.parametrize(
     ("description", "expected"),
     [
@@ -34,6 +35,13 @@ def test_extract_skills_does_not_match_partial_words():
         ("Minimum of 4 years", 4),
         ("At least 5 years of experience", 5),
         ("4-6 years of experience", 4),
+        ("Total experience: 8 years", 8),
+        ("Total Experience: 8+ Years", 8),
+        ("Minimum of 7 years' work experience in IT", 7),
+        ("Minimum of 4 years experience as DevOps Engineer", 4),
+        ("5 years of experience", 5),
+        ("3-5 years of experience", 3),
+        ("Experience: 6 years", 6),
         ("No experience requirement mentioned", None),
     ],
 )

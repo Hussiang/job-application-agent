@@ -1,4 +1,5 @@
 from src.jobs.job import Job
+from src.jobs.job_parser import parse_job_description
 from src.jobs.job_ranker import (
     calculate_experience_score,
     calculate_penalty,
@@ -99,6 +100,33 @@ def test_excessive_experience_makes_job_ineligible():
     assert result["status"] == "NOT ELIGIBLE"
     assert "Requires 8+ years of experience" in result["reasons"]
 
+
+def test_six_years_experience_is_borderline():
+    result = check_job_eligibility(
+        create_job(6),
+        PROFILE,
+    )
+
+    assert result["status"] == "BORDERLINE"
+    assert (
+        "Experience slightly above preferred range (6 years)"
+        in result["reasons"]
+    )
+
+
+def test_parsed_eight_year_requirement_makes_job_ineligible():
+    job = parse_job_description(
+        title="DevOps Engineer",
+        company="Trigent Software Private Limited",
+        description="Total experience: 8 years",
+        known_skills=[],
+    )
+
+    result = check_job_eligibility(job, PROFILE)
+
+    assert job.experience_required == 8
+    assert result["status"] == "NOT ELIGIBLE"
+    assert "Requires 8+ years of experience" in result["reasons"]
 
 
 def test_staff_title_is_not_eligible():
