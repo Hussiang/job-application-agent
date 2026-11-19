@@ -18,3 +18,8 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+# Local backups and personal working files
+/backups/
+*.backup-*
+/resume.md
+/verify_ranking.py
