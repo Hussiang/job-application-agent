@@ -1,6 +1,39 @@
-from src.jobs.job import Job
-from run_discovery import collect_notification_candidates
+import pytest
+import run_discovery as discovery_runner
 
+from src.jobs.job import Job
+from run_discovery import collect_notification_candidates, parse_args
+
+
+def test_parse_args_uses_safe_defaults():
+    args = parse_args([])
+
+    assert args.dry_run is False
+    assert args.no_telegram is False
+    assert args.limit is None
+
+
+def test_parse_args_accepts_all_options():
+    args = parse_args([
+        "--dry-run",
+        "--no-telegram",
+        "--limit",
+        "3",
+    ])
+
+    assert args.dry_run is True
+    assert args.no_telegram is True
+    assert args.limit == 3
+
+
+def test_parse_args_rejects_zero_limit():
+    with pytest.raises(SystemExit):
+        parse_args(["--limit", "0"])
+
+
+def test_parse_args_rejects_negative_limit():
+    with pytest.raises(SystemExit):
+        parse_args(["--limit", "-1"])
 
 def make_job(job_id, *, source="Adzuna", active=True, notified=False):
     return Job(
@@ -69,3 +102,179 @@ def test_failed_delivery_stays_eligible_until_successful_retry():
 
     assert service.notify_new_jobs(ranked) == 1
     assert collect_notification_candidates([job], []) == []
+def configure_main(monkeypatch, discovery_result):
+    captured = {}
+
+    profile = {
+        "job_discovery": {
+            "locations": ["Hyderabad"],
+            "results_per_search": 10,
+        },
+        "notifications": {
+            "telegram": {
+                "enabled": True,
+                "minimum_score": 45,
+            }
+        },
+    }
+
+    monkeypatch.setattr(
+        discovery_runner,
+        "load_profile",
+        lambda: profile,
+    )
+    monkeypatch.setattr(
+        discovery_runner,
+        "load_scoring",
+        lambda: {},
+    )
+
+    class FakeRepository:
+        def __init__(self, path):
+            self.saved = False
+
+        def save_jobs(self, jobs):
+            self.saved = True
+
+    class FakeJsonSource:
+        def __init__(self, path):
+            pass
+
+        def fetch_jobs(self):
+            return []
+
+    class FakeAdzunaSource:
+        def __init__(self, **kwargs):
+            pass
+
+    class FakeDiscoveryService:
+        def __init__(self, **kwargs):
+            pass
+
+        def discover_jobs(self, **kwargs):
+            captured.update(kwargs)
+            return discovery_result
+
+    monkeypatch.setattr(
+        discovery_runner,
+        "JobRepository",
+        FakeRepository,
+    )
+    monkeypatch.setattr(
+        discovery_runner,
+        "JsonJobSource",
+        FakeJsonSource,
+    )
+    monkeypatch.setattr(
+        discovery_runner,
+        "AdzunaJobSource",
+        FakeAdzunaSource,
+    )
+    monkeypatch.setattr(
+        discovery_runner,
+        "JobDiscoveryService",
+        FakeDiscoveryService,
+    )
+    monkeypatch.setattr(
+        discovery_runner,
+        "build_search_queries",
+        lambda profile: ["query-1", "query-2", "query-3"],
+    )
+
+    def unexpected_telegram(*args, **kwargs):
+        raise AssertionError("Telegram must not be initialized")
+
+    monkeypatch.setattr(
+        discovery_runner,
+        "TelegramNotifier",
+        unexpected_telegram,
+    )
+
+    return captured
+def test_dry_run_disables_persistence_and_notifications(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        ["run_discovery.py", "--dry-run"],
+    )
+
+    captured = configure_main(
+        monkeypatch,
+        {
+            "complete": True,
+            "new_jobs": [],
+            "changed_jobs": [],
+            "failed_queries": [],
+        },
+    )
+
+    discovery_runner.main()
+
+    assert captured["persist"] is False
+
+
+def test_no_telegram_keeps_discovery_persistence_enabled(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        ["run_discovery.py", "--no-telegram"],
+    )
+
+    captured = configure_main(
+        monkeypatch,
+        {
+            "complete": True,
+            "new_jobs": [],
+            "changed_jobs": [],
+            "failed_queries": [],
+        },
+    )
+
+    discovery_runner.main()
+
+    assert captured["persist"] is True
+
+
+def test_limit_restricts_number_of_discovery_queries(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        ["run_discovery.py", "--dry-run", "--limit", "2"],
+    )
+
+    captured = configure_main(
+        monkeypatch,
+        {
+            "complete": True,
+            "new_jobs": [],
+            "changed_jobs": [],
+            "failed_queries": [],
+        },
+    )
+
+    discovery_runner.main()
+
+    assert captured["queries"] == ["query-1", "query-2"]
+
+
+def test_incomplete_discovery_suppresses_notifications(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        ["run_discovery.py"],
+    )
+
+    captured = configure_main(
+        monkeypatch,
+        {
+            "complete": False,
+            "new_jobs": [],
+            "changed_jobs": [],
+            "failed_queries": [
+                {
+                    "query": "query-1",
+                    "error": "Simulated source failure",
+                }
+            ],
+        },
+    )
+
+    discovery_runner.main()
+
+    assert captured["persist"] is True

@@ -1,4 +1,6 @@
 import json
+import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -68,29 +70,48 @@ def load_applications() -> list[Application]:
     ]
 
 
+
 def save_applications(
     applications: list[Application],
 ) -> None:
-
     APPLICATIONS_FILE.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    with APPLICATIONS_FILE.open(
-        "w",
-        encoding="utf-8",
-    ) as file:
+    payload = [
+        application.to_dict()
+        for application in applications
+    ]
 
-        json.dump(
-            [
-                application.to_dict()
-                for application in applications
-            ],
-            file,
-            indent=4,
-        )
+    temp_path = None
 
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            dir=APPLICATIONS_FILE.parent,
+            prefix=f".{APPLICATIONS_FILE.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as file:
+            temp_path = Path(file.name)
+
+            json.dump(payload, file, indent=4)
+            file.write("\n")
+            file.flush()
+            os.fsync(file.fileno())
+
+        os.replace(temp_path, APPLICATIONS_FILE)
+        temp_path = None
+
+    finally:
+        if temp_path is not None:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 def add_application(
     job: Job,

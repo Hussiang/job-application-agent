@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import tempfile
@@ -31,7 +32,6 @@ class JobRepository:
         self.file_path.parent.mkdir(parents=True, exist_ok=True)
         payload = [job.to_dict() for job in jobs]
         temp_path = None
-
         try:
             with tempfile.NamedTemporaryFile(
                 mode="w",
@@ -47,7 +47,6 @@ class JobRepository:
                 file.write("\n")
                 file.flush()
                 os.fsync(file.fileno())
-
             # The temporary file is on the same filesystem, so replacement
             # is atomic on supported local filesystems.
             os.replace(temp_path, self.file_path)
@@ -58,7 +57,6 @@ class JobRepository:
                     temp_path.unlink(missing_ok=True)
                 except OSError:
                     pass
-
     def update_job_status(
         self,
         jobs: list[Job],
@@ -72,15 +70,24 @@ class JobRepository:
                 f"Invalid job status: {new_status}. "
                 f"Valid statuses are: {', '.join(VALID_JOB_STATUSES)}"
             )
-
         for job in jobs:
             if job.job_id == job_id:
+                # Stage the update without mutating the original object.
+                staged_jobs = copy.deepcopy(jobs)
+
+                staged_job = next(
+                    item for item in staged_jobs
+                    if item.job_id == job_id
+                )
+                staged_job.status = new_status
+
+                # If persistence fails, the original collection stays intact.
+                self.save_jobs(staged_jobs)
+
+                # Commit to the original object only after successful saving.
                 job.status = new_status
-                self.save_jobs(jobs)
                 return job
-
         return None
-
     def _normalize_text(self, value: str | None) -> str:
         if not value:
             return ""

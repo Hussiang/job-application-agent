@@ -1,7 +1,9 @@
+import src.applications.application_tracker as tracker
+
 from src.applications.application_tracker import (
     add_application,
     get_application,
-    update_application_status
+    update_application_status,
 )
 from src.application_package.package_generator import (
     generate_application_package
@@ -17,6 +19,49 @@ from src.jobs.job_actions import (
 from src.jobs.job_repository import (
     JobRepository
 )
+
+
+def track_application(job, jobs, job_repository):
+    if job.status != "SHORTLISTED":
+        return None
+
+    if get_application(job.job_id):
+        return None
+
+    original_applications = tracker.load_applications()
+
+    application = add_application(job)
+
+    if application is None:
+        return None
+
+    try:
+        updated_job = update_job_status(
+            jobs,
+            job_repository,
+            job.job_id,
+            "APPLIED",
+        )
+
+        if updated_job is None:
+            raise RuntimeError(
+                f"Could not update job {job.job_id} to APPLIED"
+            )
+
+        return application
+
+    except Exception as operation_error:
+        try:
+            tracker.save_applications(original_applications)
+        except Exception as rollback_error:
+            raise RuntimeError(
+                "Application tracking failed, and restoring "
+                "the application records also failed. "
+                f"Original error: {operation_error}. "
+                f"Rollback error: {rollback_error}."
+            ) from rollback_error
+
+        raise
 
 def handle_application_actions(
     ranked_jobs,
@@ -108,41 +153,35 @@ def handle_application_actions(
         "(y/n): "
     ).strip().lower()
 
+
     if confirm != "y":
-        print(
-            "\nApplication was not tracked."
-        )
+        print("\nApplication was not tracked.")
         return
 
-    application = add_application(
-    selected_result["job"]
-)
-
-    if application:
-     updated_job = update_job_status(
-        jobs,
-        job_repository,
-        selected_result["job"].job_id,
-        "APPLIED"
-    )
-
-    print(
-        "\nApplication tracked: "
-        f"{application.company} - "
-        f"{application.title}"
-    )
-
-    if updated_job:
-        print(
-            f"Job status updated to: "
-            f"{updated_job.status}"
+    try:
+        application = track_application(
+            selected_result["job"],
+            jobs,
+            job_repository,
         )
 
-    else:
-     print(
-        "\nThis job is already "
-        "being tracked."
-    )
+        if application is None:
+            print(
+                "\nApplication was not tracked. "
+                "The job may already have an application "
+                "or may no longer be SHORTLISTED."
+            )
+            return
+
+        print(
+            "\nApplication tracked successfully: "
+            f"{application.company} - "
+            f"{application.title}"
+        )
+        print("Job status updated to: APPLIED")
+
+    except Exception as error:
+        print(f"\nApplication tracking failed: {error}")
 
 
 def handle_status_update():

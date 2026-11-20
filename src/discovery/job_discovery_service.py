@@ -1,3 +1,5 @@
+
+import copy
 from datetime import datetime
 
 from src.discovery.job_relevance_filter import JobRelevanceFilter
@@ -18,7 +20,11 @@ class JobDiscoveryService:
             for skill in category_skills
         ]
 
-    def discover_jobs(self, queries, existing_jobs):
+    def discover_jobs(self, queries, existing_jobs, persist=True):
+        # Work on an isolated copy. The caller's list remains untouched
+        # until a complete discovery run has been successfully saved.
+        staged_jobs = copy.deepcopy(existing_jobs)
+
         new_jobs = []
         changed_jobs = []
         failed_queries = []
@@ -35,9 +41,11 @@ class JobDiscoveryService:
             print(f"\nSearching jobs for: {query}")
             search_result = self.job_source.search(query)
 
-            # Structured sources explicitly report success/failure. Retain
-            # list compatibility for existing test doubles and other sources.
-            if hasattr(search_result, "success") and hasattr(search_result, "jobs"):
+            # Support structured search results and legacy list responses.
+            if (
+                hasattr(search_result, "success")
+                and hasattr(search_result, "jobs")
+            ):
                 if not search_result.success:
                     failed_queries.append({
                         "query": query,
@@ -45,9 +53,12 @@ class JobDiscoveryService:
                     })
                     print(f"Search failed: {query}")
                     continue
+
                 jobs = search_result.jobs
+
             elif isinstance(search_result, list):
                 jobs = search_result
+
             else:
                 failed_queries.append({
                     "query": query,
@@ -58,7 +69,10 @@ class JobDiscoveryService:
             successful_queries += 1
             total_jobs_found += len(jobs)
 
-            for job in jobs:
+            for source_job in jobs:
+                # Do not mutate objects owned by the source.
+                job = copy.deepcopy(source_job)
+
                 parsed_job = parse_job_description(
                     job.title,
                     job.company,
@@ -69,6 +83,7 @@ class JobDiscoveryService:
                 job.skills = list(dict.fromkeys(
                     (job.skills or []) + (parsed_job.skills or [])
                 ))
+
                 job.responsibilities = list(dict.fromkeys(
                     (job.responsibilities or [])
                     + (parsed_job.responsibilities or [])
@@ -76,12 +91,14 @@ class JobDiscoveryService:
 
                 if parsed_job.experience_required is not None:
                     job.experience_required = parsed_job.experience_required
+
                 if parsed_job.certification_requirement is not None:
                     job.certification_requirement = (
                         parsed_job.certification_requirement
                     )
 
                 is_relevant, reason = self.relevance_filter.is_relevant(job)
+
                 if not is_relevant:
                     rejected_count += 1
                     print(f"Rejected: {job.title} - {reason}")
@@ -89,16 +106,18 @@ class JobDiscoveryService:
 
                 existing_job = self.job_repository.find_duplicate(
                     job,
-                    existing_jobs,
+                    staged_jobs,
                 )
 
                 if existing_job:
                     duplicate_count += 1
+
                     fields_changed = self._update_existing_job(
                         existing_job,
                         job,
                         current_time,
                     )
+
                     if fields_changed:
                         changed_jobs.append(existing_job)
                         print(
@@ -109,6 +128,7 @@ class JobDiscoveryService:
                         print(
                             f"Duplicate updated: {job.title} - {job.company}"
                         )
+
                     updated_count += 1
                     continue
 
@@ -116,17 +136,28 @@ class JobDiscoveryService:
                 job.first_seen = current_time
                 job.last_seen = current_time
                 job.active = True
+
                 next_job_id += 1
-                existing_jobs.append(job)
+                staged_jobs.append(job)
                 new_jobs.append(job)
+
                 print(f"New job discovered: {job.title} - {job.company}")
 
-        complete = not failed_queries and successful_queries == len(queries)
+        complete = (
+            not failed_queries
+            and successful_queries == len(queries)
+        )
 
-        # Do not commit any in-memory changes from an incomplete run. The next
-        # complete run can rediscover these jobs and notify them safely.
-        if complete and (new_jobs or changed_jobs or updated_count):
-            self.job_repository.save_jobs(existing_jobs)
+        # Commit only after every query succeeds and persistence succeeds.
+        if (
+            persist
+            and complete
+            and (new_jobs or changed_jobs or updated_count)
+        ):
+            self.job_repository.save_jobs(staged_jobs)
+
+            # Preserve the original list object for callers holding a reference.
+            existing_jobs[:] = staged_jobs
 
         print("\n========== DISCOVERY SUMMARY ==========")
         print(f"Search queries: {len(queries)}")
@@ -155,6 +186,7 @@ class JobDiscoveryService:
         current_time,
     ) -> bool:
         fields_changed = False
+
         fields_to_update = [
             "title",
             "company",
@@ -175,8 +207,10 @@ class JobDiscoveryService:
 
             if new_value is None or new_value == "":
                 continue
+
             if isinstance(new_value, list) and not new_value:
                 continue
+
             if field_name == "location" and new_value == "Not specified":
                 continue
 
@@ -185,6 +219,7 @@ class JobDiscoveryService:
                 fields_changed = True
 
         existing_job.last_seen = current_time
+
         if not existing_job.active:
             existing_job.active = True
             fields_changed = True
